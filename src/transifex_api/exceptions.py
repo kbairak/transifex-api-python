@@ -56,7 +56,7 @@ class JsonApiException(Exception):
     source = first_error_property('source')
 
 
-class JsonApiError(Exception):
+class JsonApiError:
     def __init__(self, status, code, title, detail, source=None):
         self.status = status
         self.code = code

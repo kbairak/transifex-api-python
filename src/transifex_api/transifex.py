@@ -17,9 +17,7 @@ class Resource(JsonApiResource):
     TYPE = "resources"
 
     def purge(self):
-        for page in list(ResourceString.
-                         list(filters={'resource': self}).
-                         all_pages()):
+        for page in list(ResourceString.filter(resource=self).all_pages()):
             ResourceString.bulk_delete(page)
 
         # If there was a 'resource_strings' plural relationship on Resource, we

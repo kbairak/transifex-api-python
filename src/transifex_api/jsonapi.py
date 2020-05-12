@@ -95,6 +95,7 @@ import collections
 from copy import deepcopy
 
 from .globals import _jsonapi_global
+from .queryset import Queryset
 from .requests import _jsonapi_request
 
 
@@ -108,6 +109,12 @@ class _JsonApiMeta(type):
         if dct.get('TYPE') is not None:
             _jsonapi_global.registry[dct['TYPE']] = klass
         return klass
+
+
+def _queryset_method(method):
+    def _method(cls, *args, **kwargs):
+        return getattr(Queryset(cls), method)(*args, **kwargs)
+    return classmethod(_method)
 
 
 class Resource(metaclass=_JsonApiMeta):
@@ -356,80 +363,15 @@ class Resource(metaclass=_JsonApiMeta):
         return instance
 
     @classmethod
-    def list(cls, *, filters=None, include=None, sort=None, page=None,
-             fields=None, extra=None):
-        """ Usage:
+    def all(cls):
+        return Queryset(cls)
 
-                >>> foos = Foo.list(filters={'name[contains]': "foo"},
-                ...                 include=['parent'],
-                ...                 sort=['name'],
-                ...                 page=2,
-                ...                 fields=['name', ...],
-                ...                 extra=...)
-
-            Return value is a list-like object called Page (defined below):
-
-                >>> foo = foos[0]
-                >>> for foo in foos: ...  # will iterate over page
-
-            With a few smart methods: has_next(), next(), has_previous(),
-            previous(), all():
-
-                >>> if foos.has_hext():
-                ...     foos = foos.next()  # fetches next page
-
-                >>> # will iterate over current page
-                >>> for foo in foos:
-                ...     print(foo.a['name'])
-
-                >>> # will iterate over all pages
-                >>> for foo in foos.all():
-                ...     if foo.a['name'] == "Gotcha":
-                ...         found = foo
-                ...         break
-        """
-
-        url = f"/{cls.TYPE}"
-        params = {}
-        if filters is None:
-            filters = {}
-        for key, value in filters.items():
-            # 'a':    'b' => 'filter[a]:    'b'
-            # 'a[b]': 'c' => 'filter[a][b]: 'c'
-            if '[' in key:
-                left, right = key.split('[', 1)
-                key = f'filter[{left}][{right}'
-            else:
-                key = f'filter[{key}]'
-
-            if isinstance(value, Resource):
-                value = value.id
-
-            params[key] = value
-
-        if include is not None:
-            params['include'] = ','.join(include)
-
-        if sort is not None:
-            params['sort'] = ','.join(sort)
-
-        if page is not None:
-            # 1              => {'page': 1}
-            # {'limit': 10,  => {'page[limit]': 10,
-            #  'offset': 10}     'page[offset]': 10}
-            if isinstance(page, collections.abc.Mapping):
-                for key, value in page.items():
-                    params[f'page[{key}]'] = value
-            else:
-                params['page'] = page
-
-        if fields is not None:
-            params['fields'] = ','.join(fields)
-
-        if extra is not None:
-            params.update(extra)
-
-        return Page(_jsonapi_request('get', url, params=params))
+    filter = _queryset_method('filter')
+    page = _queryset_method('page')
+    include = _queryset_method('include')
+    sort = _queryset_method('sort')
+    fields = _queryset_method('fields')
+    extra = _queryset_method('extra')
 
     def fetch(self, *relationship_names, force=False):
         """ Fetches 'relationship', if it wasn't included when fetching 'self';
