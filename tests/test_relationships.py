@@ -84,6 +84,7 @@ def test_fetch_plural():
     parent = Parent(parent_payloads[1])
     assert 'children' not in parent.r
     parent.fetch('children')
+    list(parent.children)
 
     assert len(responses.calls) == 1
     assert 'children' in parent.r

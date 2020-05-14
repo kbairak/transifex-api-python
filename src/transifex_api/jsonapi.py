@@ -91,7 +91,6 @@
 
 """
 
-import collections
 from copy import deepcopy
 
 from .globals import _jsonapi_global
@@ -109,12 +108,6 @@ class _JsonApiMeta(type):
         if dct.get('TYPE') is not None:
             _jsonapi_global.registry[dct['TYPE']] = klass
         return klass
-
-
-def _queryset_method(method):
-    def _method(cls, *args, **kwargs):
-        return getattr(Queryset(cls), method)(*args, **kwargs)
-    return classmethod(_method)
 
 
 class Resource(metaclass=_JsonApiMeta):
@@ -363,8 +356,13 @@ class Resource(metaclass=_JsonApiMeta):
         return instance
 
     @classmethod
-    def all(cls):
-        return Queryset(cls)
+    def list(cls):
+        return Queryset(f"/{cls.TYPE}")
+
+    def _queryset_method(method):
+        def _method(cls, *args, **kwargs):
+            return getattr(Queryset(f"/{cls.TYPE}"), method)(*args, **kwargs)
+        return classmethod(_method)
 
     filter = _queryset_method('filter')
     page = _queryset_method('page')
@@ -407,7 +405,8 @@ class Resource(metaclass=_JsonApiMeta):
                 isinstance(self.r.get(relationship_name), Resource) and
                 (self.r[relationship_name].a or self.r[relationship_name].R)
             )
-            is_plural_fetched = isinstance(self.r.get(relationship_name), Page)
+            is_plural_fetched = isinstance(self.r.get(relationship_name),
+                                           Queryset)
             if (is_singular_fetched or is_plural_fetched) and not force:
                 # Has been fetched already
                 continue
@@ -418,8 +417,7 @@ class Resource(metaclass=_JsonApiMeta):
             else:
                 # Plural relationship
                 url = relationship['links']['related']
-                response_body = _jsonapi_request('get', url)
-                self.r[relationship_name] = Page(response_body)
+                self.r[relationship_name] = Queryset(url)
 
     # Editing
     def save(self, *fields):
@@ -449,7 +447,7 @@ class Resource(metaclass=_JsonApiMeta):
 
         related = deepcopy(self.r)
         for relationship_name, related_instance in list(related.items()):
-            if isinstance(related_instance, Page):
+            if isinstance(related_instance, Queryset):
                 continue  # Plural relationship
 
             try:
@@ -712,7 +710,7 @@ class Resource(metaclass=_JsonApiMeta):
 
         response_body = _jsonapi_request('post', f"/{cls.TYPE}",
                                          json={'data': payload}, bulk=True)
-        return Page(response_body)
+        return Queryset.from_data(response_body)
 
     @classmethod
     def bulk_update(cls, items, fields=None):
@@ -767,7 +765,7 @@ class Resource(metaclass=_JsonApiMeta):
 
         response_body = _jsonapi_request('patch', f"/{cls.TYPE}",
                                          json={'data': payload}, bulk=True)
-        return Page(response_body)
+        return Queryset.from_data(response_body)
 
     @staticmethod
     def _extract_from_item(item):
@@ -827,57 +825,3 @@ class Resource(metaclass=_JsonApiMeta):
             return self.links['self']
         else:
             return f"/{self.TYPE}/{self.id}"
-
-
-class Page(collections.UserList):
-    """ A UserList subclass for storing pages of API resource instances. Gets
-        initialized with the json body of an API request.
-
-        Supports pagination with the 'has_next', 'next', 'has_previous',
-        'previous', 'all_pages' and 'all' methods.
-    """
-
-    def __init__(self, response_body):
-        included = {}
-        if 'included' in response_body:
-            included = {(item['type'], item['id']): item
-                        for item in response_body['included']}
-        result = []
-        for item in response_body['data']:
-            related = {}
-            for (relationship_name,
-                 relationship) in item.get('relationships', {}).items():
-                if relationship is None or 'data' not in relationship:
-                    continue
-                key = (relationship['data']['type'],
-                       relationship['data']['id'])
-                if key in included:
-                    related[relationship_name] = Resource.new(included[key])
-            result.append(Resource.new(related=related, **item))
-        super().__init__(result)
-
-        self._next = response_body.get('links', {}).get('next')
-        self._previous = response_body.get('links', {}).get('previous')
-
-    def has_next(self):
-        return bool(self._next)
-
-    def next(self):
-        return self.__class__(_jsonapi_request('get', self._next))
-
-    def has_previous(self):
-        return bool(self._previous)
-
-    def previous(self):
-        return self.__class__(_jsonapi_request('get', self._previous))
-
-    def all_pages(self):
-        yield self
-        page = self
-        while page.has_next():
-            page = page.next()
-            yield page
-
-    def all(self):
-        for page in self.all_pages():
-            yield from page

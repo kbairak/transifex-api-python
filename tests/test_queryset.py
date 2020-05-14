@@ -1,6 +1,7 @@
 import responses
 import transifex_api
-from transifex_api.jsonapi import Page, Resource
+from transifex_api.jsonapi import Resource
+from transifex_api.queryset import Queryset
 
 from .payloads import Payloads
 
@@ -14,18 +15,37 @@ class Item(Resource):
 payloads = Payloads('items')
 
 
-def test_page():
-    page = Page({'data': payloads[1:4]})
+@responses.activate
+def test_queryset():
+    responses.add(responses.GET, 'https://rest.api.transifex.com/items',
+                  json={'data': payloads[1:4]})
 
-    assert len(page) == 3
-    assert isinstance(page[0], Item)
-    assert page[1].id == "2"
-    assert page[2].name == "item 3"
+    queryset = Queryset('/items')
+    list(queryset)
 
-    assert not page.has_next()
-    assert not page.has_previous()
+    assert len(queryset) == 3
+    assert isinstance(queryset[0], Item)
+    assert queryset[1].id == "2"
+    assert queryset[2].name == "item 3"
 
-    assert page == list(page.all())
+    assert not queryset.has_next()
+    assert not queryset.has_previous()
+
+    assert list(queryset) == list(queryset.all())
+
+
+def test_from_data():
+    queryset = Queryset.from_data({'data': payloads[1:4]})
+
+    assert len(queryset) == 3
+    assert isinstance(queryset[0], Item)
+    assert queryset[1].id == "2"
+    assert queryset[2].name == "item 3"
+
+    assert not queryset.has_next()
+    assert not queryset.has_previous()
+
+    assert list(queryset) == list(queryset.all())
 
 
 @responses.activate
@@ -34,10 +54,11 @@ def test_pagination():
                   json={'data': payloads[4:7],
                         'links': {'previous': "/items?page=1"}}, status=200)
 
-    first_page = Page({'data': payloads[1:4],
-                       'links': {'next': "/items?page=2"}})
+    first_page = Queryset.from_data({'data': payloads[1:4],
+                                     'links': {'next': "/items?page=2"}})
     assert first_page.has_next()
     second_page = first_page.next()
+    list(second_page)
 
     assert len(responses.calls) == 1
 
@@ -50,25 +71,25 @@ def test_pagination():
     assert second_page.has_previous()
 
     assert list(first_page.all()) == list(first_page) + list(second_page)
-    assert list(first_page.all_pages()) == [list(first_page),
-                                            list(second_page)]
+    assert ([list(page) for page in first_page.all_pages()] ==
+            [list(first_page), list(second_page)])
 
 
 @responses.activate
 def test_all():
     responses.add(responses.GET, "https://rest.api.transifex.com/items",
                   json={'data': payloads[1:4]}, status=200)
-    page = Item.all()
+    queryset = Item.list()
 
-    assert len(page) == 3
-    assert isinstance(page[0], Item)
-    assert page[1].id == "2"
-    assert page[2].name == "item 3"
+    assert len(queryset) == 3
+    assert isinstance(queryset[0], Item)
+    assert queryset[1].id == "2"
+    assert queryset[2].name == "item 3"
 
-    assert not page.has_next()
-    assert not page.has_previous()
+    assert not queryset.has_next()
+    assert not queryset.has_previous()
 
-    assert list(page) == list(page.all())
+    assert list(queryset) == list(queryset.all())
 
 
 @responses.activate
@@ -82,10 +103,11 @@ def test_all_with_pagination():
                         'links': {'previous': "/items?page=1"}}, status=200,
                   match_querystring=True)
 
-    first_page = Item.all()
+    first_page = Item.list()
 
     assert first_page.has_next()
     second_page = first_page.next()
+    list(second_page)
 
     assert len(responses.calls) == 2
 
@@ -98,8 +120,8 @@ def test_all_with_pagination():
     assert second_page.has_previous()
 
     assert list(first_page.all()) == list(first_page) + list(second_page)
-    assert list(first_page.all_pages()) == [list(first_page),
-                                            list(second_page)]
+    assert ([list(page) for page in first_page.all_pages()] ==
+            [list(first_page), list(second_page)])
 
 
 @responses.activate
@@ -112,7 +134,7 @@ def test_filter():
                   json={'data': payloads[1:5:2]}, status=200,
                   match_querystring=True)
 
-    all_items = Item.all()
+    all_items = Item.list()
     odd_items = Item.filter(odd=1)
 
     assert len(all_items) == 4
@@ -121,5 +143,5 @@ def test_filter():
     assert list(odd_items) == [all_items[0], all_items[2]]
 
     assert (list(Item.filter(odd=1)) ==
-            list(Item.all().filter(odd=1)) ==
+            list(Item.list().filter(odd=1)) ==
             list(Item.filter(odd=2).filter(odd=1)))

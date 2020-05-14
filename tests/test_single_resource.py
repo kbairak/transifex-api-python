@@ -62,11 +62,13 @@ def test_setattr():
 
 @responses.activate
 def test_reload():
+    foo = Foo(SIMPLE_PAYLOAD)
+
     new_payload = deepcopy(SIMPLE_PAYLOAD)
     new_payload['attributes']['hello'] = "WORLD"
     responses.add(responses.GET, "https://rest.api.transifex.com/foos/1",
                   json={'data': new_payload}, status=200)
-    foo = Foo(SIMPLE_PAYLOAD)
+
     foo.reload()
     assert foo.hello == "WORLD"
     assert foo.a == foo.attributes == {'hello': "WORLD"}
@@ -98,12 +100,13 @@ def test_get_one():
 
 @responses.activate
 def test_save_existing():
+    foo = Foo(SIMPLE_PAYLOAD)
+
     new_payload = deepcopy(SIMPLE_PAYLOAD)
     new_payload['attributes']['hello'] = "WORLD"
     responses.add(responses.PATCH, "https://rest.api.transifex.com/foos/1",
                   json={'data': new_payload}, status=200)
 
-    foo = Foo(SIMPLE_PAYLOAD)
     foo.hello = "WORLD"
     foo.save()
 

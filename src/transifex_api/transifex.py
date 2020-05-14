@@ -17,11 +17,14 @@ class Resource(JsonApiResource):
     TYPE = "resources"
 
     def purge(self):
+        count = 0
         for page in list(ResourceString.filter(resource=self).all_pages()):
+            count += len(page)
             ResourceString.bulk_delete(page)
+        return count
 
         # If there was a 'resource_strings' plural relationship on Resource, we
-        # could do
+        # could do:
         # self.fetch('resource_strings')
         # for page in list(self.resource_strings.all_pages()):
         #     ResourceString.bulk_delete(page)
