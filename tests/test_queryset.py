@@ -3,6 +3,7 @@ import transifex_api
 from transifex_api.jsonapi import Resource
 from transifex_api.queryset import Queryset
 
+from .constants import host
 from .payloads import Payloads
 
 transifex_api.setup("test_api_key")
@@ -17,8 +18,7 @@ payloads = Payloads('items')
 
 @responses.activate
 def test_queryset():
-    responses.add(responses.GET, 'https://rest.api.transifex.com/items',
-                  json={'data': payloads[1:4]})
+    responses.add(responses.GET, f"{host}/items", json={'data': payloads[1:4]})
 
     queryset = Queryset('/items')
     list(queryset)
@@ -50,9 +50,9 @@ def test_from_data():
 
 @responses.activate
 def test_pagination():
-    responses.add(responses.GET, "https://rest.api.transifex.com/items?page=2",
+    responses.add(responses.GET, f"{host}/items?page=2",
                   json={'data': payloads[4:7],
-                        'links': {'previous': "/items?page=1"}}, status=200)
+                        'links': {'previous': "/items?page=1"}})
 
     first_page = Queryset.from_data({'data': payloads[1:4],
                                      'links': {'next': "/items?page=2"}})
@@ -77,8 +77,7 @@ def test_pagination():
 
 @responses.activate
 def test_all():
-    responses.add(responses.GET, "https://rest.api.transifex.com/items",
-                  json={'data': payloads[1:4]}, status=200)
+    responses.add(responses.GET, f"{host}/items", json={'data': payloads[1:4]})
     queryset = Item.list()
 
     assert len(queryset) == 3
@@ -94,13 +93,13 @@ def test_all():
 
 @responses.activate
 def test_all_with_pagination():
-    responses.add(responses.GET, "https://rest.api.transifex.com/items",
+    responses.add(responses.GET, f"{host}/items",
                   json={'data': payloads[1:4],
-                        'links': {'next': "/items?page=2"}}, status=200,
+                        'links': {'next': "/items?page=2"}},
                   match_querystring=True)
-    responses.add(responses.GET, "https://rest.api.transifex.com/items?page=2",
+    responses.add(responses.GET, f"{host}/items?page=2",
                   json={'data': payloads[4:7],
-                        'links': {'previous': "/items?page=1"}}, status=200,
+                        'links': {'previous': "/items?page=1"}},
                   match_querystring=True)
 
     first_page = Item.list()
@@ -126,13 +125,10 @@ def test_all_with_pagination():
 
 @responses.activate
 def test_filter():
-    responses.add(responses.GET, "https://rest.api.transifex.com/items",
-                  json={'data': payloads[1:5]}, status=200,
+    responses.add(responses.GET, f"{host}/items", json={'data': payloads[1:5]},
                   match_querystring=True)
-    responses.add(responses.GET,
-                  "https://rest.api.transifex.com/items?filter[odd]=1",
-                  json={'data': payloads[1:5:2]}, status=200,
-                  match_querystring=True)
+    responses.add(responses.GET, f"{host}/items?filter[odd]=1",
+                  json={'data': payloads[1:5:2]}, match_querystring=True)
 
     all_items = Item.list()
     odd_items = Item.filter(odd=1)

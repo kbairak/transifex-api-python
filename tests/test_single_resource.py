@@ -5,6 +5,8 @@ import responses
 import transifex_api
 from transifex_api.jsonapi import Resource
 
+from .constants import host
+
 transifex_api.setup("test_api_key")
 
 
@@ -66,8 +68,7 @@ def test_reload():
 
     new_payload = deepcopy(SIMPLE_PAYLOAD)
     new_payload['attributes']['hello'] = "WORLD"
-    responses.add(responses.GET, "https://rest.api.transifex.com/foos/1",
-                  json={'data': new_payload}, status=200)
+    responses.add(responses.GET, f"{host}/foos/1", json={'data': new_payload})
 
     foo.reload()
     assert foo.hello == "WORLD"
@@ -76,8 +77,8 @@ def test_reload():
 
 @responses.activate
 def test_get_one():
-    responses.add(responses.GET, "https://rest.api.transifex.com/foos/1",
-                  json={'data': SIMPLE_PAYLOAD}, status=200)
+    responses.add(responses.GET, f"{host}/foos/1",
+                  json={'data': SIMPLE_PAYLOAD})
 
     foo = Foo.get('1')
 
@@ -104,8 +105,8 @@ def test_save_existing():
 
     new_payload = deepcopy(SIMPLE_PAYLOAD)
     new_payload['attributes']['hello'] = "WORLD"
-    responses.add(responses.PATCH, "https://rest.api.transifex.com/foos/1",
-                  json={'data': new_payload}, status=200)
+    responses.add(responses.PATCH, f"{host}/foos/1",
+                  json={'data': new_payload})
 
     foo.hello = "WORLD"
     foo.save()
@@ -120,9 +121,7 @@ def test_save_existing():
 def test_save_new():
     new_payload = deepcopy(SIMPLE_PAYLOAD)
     new_payload['attributes']['created'] = "NOW!!!"
-    responses.add(responses.POST, "https://rest.api.transifex.com/foos",
-                  json={'data': new_payload},
-                  status=201)
+    responses.add(responses.POST, f"{host}/foos", json={'data': new_payload})
 
     foo = Foo(attributes={'hello': "world"})
     foo.save()
@@ -136,9 +135,7 @@ def test_save_new():
 def test_create():
     new_payload = deepcopy(SIMPLE_PAYLOAD)
     new_payload['attributes']['created'] = "NOW!!!"
-    responses.add(responses.POST, "https://rest.api.transifex.com/foos",
-                  json={'data': new_payload},
-                  status=201)
+    responses.add(responses.POST, f"{host}/foos", json={'data': new_payload})
 
     foo = Foo.create(attributes={'hello': "world"})
 
@@ -148,8 +145,7 @@ def test_create():
 
 @responses.activate
 def test_delete():
-    responses.add(responses.DELETE, "https://rest.api.transifex.com/foos/1",
-                  status=201)
+    responses.add(responses.DELETE, f"{host}/foos/1")
 
     foo = Foo(SIMPLE_PAYLOAD)
     foo.delete()

@@ -91,6 +91,7 @@
 
 """
 
+import collections
 from copy import deepcopy
 
 from .globals import _jsonapi_global
@@ -355,22 +356,6 @@ class Resource(metaclass=_JsonApiMeta):
         instance.reload(include=include)
         return instance
 
-    @classmethod
-    def list(cls):
-        return Queryset(f"/{cls.TYPE}")
-
-    def _queryset_method(method):
-        def _method(cls, *args, **kwargs):
-            return getattr(Queryset(f"/{cls.TYPE}"), method)(*args, **kwargs)
-        return classmethod(_method)
-
-    filter = _queryset_method('filter')
-    page = _queryset_method('page')
-    include = _queryset_method('include')
-    sort = _queryset_method('sort')
-    fields = _queryset_method('fields')
-    extra = _queryset_method('extra')
-
     def fetch(self, *relationship_names, force=False):
         """ Fetches 'relationship', if it wasn't included when fetching 'self';
             `force=True` supported. Usage:
@@ -418,6 +403,22 @@ class Resource(metaclass=_JsonApiMeta):
                 # Plural relationship
                 url = relationship['links']['related']
                 self.r[relationship_name] = Queryset(url)
+
+    @classmethod
+    def list(cls):
+        return Queryset(f"/{cls.TYPE}")
+
+    def _queryset_method(method):
+        def _method(cls, *args, **kwargs):
+            return getattr(Queryset(f"/{cls.TYPE}"), method)(*args, **kwargs)
+        return classmethod(_method)
+
+    filter = _queryset_method('filter')
+    page = _queryset_method('page')
+    include = _queryset_method('include')
+    sort = _queryset_method('sort')
+    fields = _queryset_method('fields')
+    extra = _queryset_method('extra')
 
     # Editing
     def save(self, *fields):
@@ -657,13 +658,16 @@ class Resource(metaclass=_JsonApiMeta):
                 >>> Foo.bulk_delete(foos)
         """
 
-        _jsonapi_request(
-            'delete',
-            f"/{cls.TYPE}",
-            json={'data': [Resource.as_resource(item).as_resource_identifier()
-                           for item in items]},
-            bulk=True,
-        )
+        payload = []
+        for item in items:
+            attributes, relationships, id = cls._extract_from_item(item)
+            if id is None:
+                raise ValueError("Attempting to delete instance without an "
+                                 "'id'")
+            payload.append({'type': cls.TYPE, 'id': id})
+
+        _jsonapi_request('delete', f"/{cls.TYPE}", json={'data': payload},
+                         bulk=True)
 
     @classmethod
     def bulk_create(cls, items):
@@ -700,9 +704,9 @@ class Resource(metaclass=_JsonApiMeta):
                 raise ValueError("'id' supplied as part of a new instance")
 
             payload.append({'type': cls.TYPE})
-            if attributes is not None:
+            if attributes:
                 payload[-1]['attributes'] = attributes
-            if relationships is not None:
+            if relationships:
                 payload[-1]['relationships'] = {
                     key: Resource.as_resource(value).as_relationship()
                     for key, value in relationships.items()
@@ -772,22 +776,26 @@ class Resource(metaclass=_JsonApiMeta):
         if isinstance(item, Resource):
             return item.a, item.R, item.id
 
+        if isinstance(item, collections.abc.Mapping) and 'data' in item:
+            item = item['data']
+
+        if (isinstance(item, collections.abc.Mapping) and
+                any(('attributes' in item,
+                     'relationships' in 'item',
+                     'id' in item))):
+            return (item.get('attributes', None),
+                    item.get('relationships', None),
+                    item.get('id', None))
+
         try:
-            attributes, relationships, id = (
-                item.get('attributes', None),
-                item.get('relationships', None),
-                item.get('id', None),
-            )
-        except AttributeError:
+            attributes, relationships, id = item
+        except ValueError:
             try:
-                attributes, relationships, id = item
+                attributes, relationships = item
+                id = None
             except ValueError:
-                try:
-                    attributes, relationships = item
-                    id = None
-                except ValueError:
-                    attributes = item
-                    relationships, id = None
+                attributes = item
+                relationships, id = None, None
         return attributes, relationships, id
 
     # Utils

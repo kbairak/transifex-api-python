@@ -3,11 +3,13 @@ from transifex_api.globals import _jsonapi_global
 from transifex_api.jsonapi import Resource
 from transifex_api.auth import ULFAuthentication
 
+from .constants import host
+
 
 def reset_setup():
     transifex_api.setup("test_api_key")
     assert _jsonapi_global.auth_header == "Bearer test_api_key"
-    assert _jsonapi_global.host == "https://rest.api.transifex.com"
+    assert _jsonapi_global.host == host
 
 
 class GlobalTest(Resource):
