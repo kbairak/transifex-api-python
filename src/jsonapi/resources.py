@@ -94,8 +94,10 @@
 import collections
 from copy import deepcopy
 
+import requests
+
 from .globals import _jsonapi_global
-from .queryset import Queryset
+from .querysets import Queryset
 from .requests import _jsonapi_request
 
 
@@ -179,18 +181,33 @@ class Resource(metaclass=_JsonApiMeta):
                             relationships=relationships, links=links,
                             related=related)
 
-    def _overwrite(self, id=None, attributes=None, relationships=None,
-                   links=None, related=None, included=None, type=None):
+    def _overwrite(self, *,
+                   # Copied from response to the instance
+                   id=None, attributes=None, relationships=None, links=None,
+                   # Used to overwrite 'related'
+                   included=None, related=None,
+                   # Used in case of redirect responses
+                   redirect=None,
+                   # Ignored
+                   type=None):
         """ Write to the basic attributes of Resource. Used by '__init__',
             'reload', '__copy__' and 'save'
         """
 
+        # Copy from response
         self.id = id
 
         if attributes is not None:
             self.attributes = deepcopy(attributes)
         else:
             self.attributes = {}
+
+        if links is not None:
+            self.links = deepcopy(links)
+        else:
+            self.links = {}
+
+        self.redirect = redirect
 
         self.relationships = {}
         if relationships is not None:
@@ -200,11 +217,7 @@ class Resource(metaclass=_JsonApiMeta):
                 else:
                     self.R[key] = value
 
-        if links is not None:
-            self.links = deepcopy(links)
-        else:
-            self.links = {}
-
+        # Enhance 'self.related'
         self.related = {}
         for relationship_name, relationship in self.R.items():
             if relationship is None:
@@ -294,7 +307,7 @@ class Resource(metaclass=_JsonApiMeta):
 
     def __getattr__(self, attr):
         if attr in ('a', 'attributes', 'R', 'relationships', 'r', 'related',
-                    'id', 'links'):
+                    'id', 'links', 'redirect'):
             return super().__getattribute__(attr)
         elif attr in self.a:
             return self.a[attr]
@@ -304,7 +317,8 @@ class Resource(metaclass=_JsonApiMeta):
             return super().__getattribute__(attr)
 
     def __setattr__(self, attr, value):
-        if attr in ('id', 'attributes', 'relationships', 'related', 'links'):
+        if attr in ('id', 'attributes', 'relationships', 'related', 'links',
+                    'redirect'):
             super().__setattr__(attr, value)
         elif attr in self.a:
             self.a[attr] = value
@@ -332,8 +346,12 @@ class Resource(metaclass=_JsonApiMeta):
         if include is not None:
             params = {'include': ','.join(include)}
         response_body = _jsonapi_request('get', url, params=params)
-        self._overwrite(included=response_body.get('included'),
-                        **response_body['data'])
+        if (isinstance(response_body, requests.Response) and
+                response_body.status_code == 303):
+            self._overwrite(redirect=response_body.headers['Location'])
+        else:
+            self._overwrite(included=response_body.get('included'),
+                            **response_body['data'])
 
     @classmethod
     def get(cls, id, *, type=None, include=None):
@@ -355,6 +373,10 @@ class Resource(metaclass=_JsonApiMeta):
             instance = cls(id=id)
         instance.reload(include=include)
         return instance
+
+    def follow(self):
+        if self.redirect is not None:
+            return Queryset(self.redirect)
 
     def fetch(self, *relationship_names, force=False):
         """ Fetches 'relationship', if it wasn't included when fetching 'self';
@@ -410,7 +432,7 @@ class Resource(metaclass=_JsonApiMeta):
 
     def _queryset_method(method):
         def _method(cls, *args, **kwargs):
-            return getattr(Queryset(f"/{cls.TYPE}"), method)(*args, **kwargs)
+            return getattr(cls.list(), method)(*args, **kwargs)
         return classmethod(_method)
 
     filter = _queryset_method('filter')
@@ -419,6 +441,8 @@ class Resource(metaclass=_JsonApiMeta):
     sort = _queryset_method('sort')
     fields = _queryset_method('fields')
     extra = _queryset_method('extra')
+    all_pages = _queryset_method('all_pages')
+    all = _queryset_method('all')
 
     # Editing
     def save(self, *fields):
@@ -440,7 +464,7 @@ class Resource(metaclass=_JsonApiMeta):
                 >>> foo = foo.save('name', ...)
         """
 
-        if self.id:
+        if self.id is not None:
             response_body = self._save_existing(*fields)
         else:
             response_body = self._save_new()
@@ -511,6 +535,13 @@ class Resource(metaclass=_JsonApiMeta):
             raise ValueError("'id' supplied as part of a new instance")
         instance.save()
         return instance
+
+    @classmethod
+    def create_with_form(cls, type=None, **files):
+        if type is None and cls.TYPE is not None:
+            type = cls.TYPE
+        response_body = _jsonapi_request('post', f"/{type}", files=files)
+        return cls.new(response_body)
 
     def delete(self):
         """ Deletes a resource from the API. Usage:
@@ -813,6 +844,9 @@ class Resource(metaclass=_JsonApiMeta):
             details = self.id
         else:
             details = "Unsaved"
+
+        if self.redirect is not None:
+            details += " (redirect ready)"
 
         return f"<{class_name}: {details}>"
 

@@ -1,15 +1,14 @@
 import responses
-import transifex_api
-from transifex_api.jsonapi import Resource
-from transifex_api.queryset import Queryset
+import jsonapi
+from jsonapi.querysets import Queryset
 
 from .constants import host
 from .payloads import Payloads
 
-transifex_api.setup("test_api_key")
+jsonapi.setup("test_api_key")
 
 
-class Item(Resource):
+class Item(jsonapi.Resource):
     TYPE = "items"
 
 

@@ -1,15 +1,15 @@
 import json
+
 import responses
-import transifex_api
-from transifex_api.jsonapi import Resource
+import jsonapi
 
 from .constants import host
 from .payloads import Payloads
 
-transifex_api.setup("test_api_key")
+jsonapi.setup("test_api_key")
 
 
-class BulkItem(Resource):
+class BulkItem(jsonapi.Resource):
     TYPE = "bulk_items"
 
 

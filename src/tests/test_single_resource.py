@@ -2,15 +2,14 @@ import json
 from copy import deepcopy
 
 import responses
-import transifex_api
-from transifex_api.jsonapi import Resource
+import jsonapi
 
 from .constants import host
 
-transifex_api.setup("test_api_key")
+jsonapi.setup("test_api_key")
 
 
-class Foo(Resource):
+class Foo(jsonapi.Resource):
     TYPE = "foos"
 
 
@@ -37,21 +36,24 @@ def test_init():
 
 
 def test_new():
-    foo = Resource.new(type="foos", id="1", attributes={'hello': "world"})
+    foo = jsonapi.Resource.new(type="foos", id="1",
+                               attributes={'hello': "world"})
     make_simple_assertions(foo)
-    foo = Resource.new({'data': SIMPLE_PAYLOAD})
+    foo = jsonapi.Resource.new({'data': SIMPLE_PAYLOAD})
     make_simple_assertions(foo)
-    foo = Resource.new(SIMPLE_PAYLOAD)
+    foo = jsonapi.Resource.new(SIMPLE_PAYLOAD)
     make_simple_assertions(foo)
 
 
 def test_as_resource():
     foo = Foo(SIMPLE_PAYLOAD)
-    assert (Resource.as_resource(foo).as_resource_identifier() ==
+    assert (jsonapi.Resource.as_resource(foo).as_resource_identifier() ==
             {'type': "foos", 'id': "1"})
-    assert (Resource.as_resource({'data': SIMPLE_PAYLOAD}).
+    assert (jsonapi.Resource.as_resource({'data': SIMPLE_PAYLOAD}).
             as_resource_identifier() == {'type': "foos", 'id': "1"})
-    assert (Resource.as_resource(SIMPLE_PAYLOAD).as_resource_identifier() ==
+    assert (jsonapi.Resource.
+            as_resource(SIMPLE_PAYLOAD).
+            as_resource_identifier() ==
             {'type': "foos", 'id': "1"})
 
 
@@ -89,7 +91,7 @@ def test_get_one():
 
     make_simple_assertions(foo)
 
-    foo = Resource.get('1', type="foos")
+    foo = jsonapi.Resource.get('1', type="foos")
 
     assert len(responses.calls) == 2
     call = responses.calls[0]

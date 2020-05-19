@@ -2,22 +2,21 @@ import json
 from copy import deepcopy
 
 import responses
-import transifex_api
-from transifex_api.jsonapi import Resource
+import jsonapi
 
 from .constants import host
 from .payloads import Payloads
 
 
-class Child(Resource):
+class Child(jsonapi.Resource):
     TYPE = "children"
 
 
-class Parent(Resource):
+class Parent(jsonapi.Resource):
     TYPE = "parents"
 
 
-transifex_api.setup("test_api_key")
+jsonapi.setup("test_api_key")
 
 
 child_payloads = Payloads(

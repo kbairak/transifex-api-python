@@ -48,7 +48,7 @@ class Queryset(collections.abc.Sequence):
         return self._previous_url
 
     def _evaluate(self, response_body=None):
-        from .jsonapi import Resource
+        from .resources import Resource
         if self._data is not None:
             return
 
@@ -112,7 +112,7 @@ class Queryset(collections.abc.Sequence):
 
     # Filters etc
     def filter(self, **filters):
-        from .jsonapi import Resource
+        from .resources import Resource
 
         params = dict(self._params)
 
