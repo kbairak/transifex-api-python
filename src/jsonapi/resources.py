@@ -537,10 +537,14 @@ class Resource(metaclass=_JsonApiMeta):
         return instance
 
     @classmethod
-    def create_with_form(cls, type=None, **files):
+    def create_with_form(cls, *, type=None, **kwargs):
+        """ Simply fowrard kwargs to requests, for non
+            'application/vnd.api+json' requests (eg file uploads)
+        """
+
         if type is None and cls.TYPE is not None:
             type = cls.TYPE
-        response_body = _jsonapi_request('post', f"/{type}", files=files)
+        response_body = _jsonapi_request('post', f"/{type}", **kwargs)
         return cls.new(response_body)
 
     def delete(self):

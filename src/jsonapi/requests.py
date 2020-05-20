@@ -6,23 +6,36 @@ from .exceptions import JsonApiException
 from .globals import _jsonapi_global
 
 
+#                    Required args
 def _jsonapi_request(method, url, *,
-                     headers=None, bulk=False, allow_redirects=False,
-                     files=None,
+                     # Not passed to requests, used to determine Content-Type
+                     bulk=False,
+                     # Forwarded to requests
+                     headers=None, data=None, files=None,
+                     allow_redirects=False,
                      **kwargs):
+
     if url.startswith('/'):
         url = f"{_jsonapi_global.host}{url}"
 
+    if bulk:
+        content_type = 'application/vnd.api+json;profile="bulk"'
+    elif (data, files) == (None, None):
+        content_type = "application/vnd.api+json"
+    else:
+        # If data and/or files are set, requests will determine Content-Type on
+        # its own
+        content_type = None
+
     if headers is None:
         headers = {}
-    headers['Authorization'] = _jsonapi_global.auth_header
-    if bulk:
-        headers['Content-Type'] = 'application/vnd.api+json;profile="bulk"'
-    elif files is None:
-        headers['Content-Type'] = "application/vnd.api+json"
+    headers.setdefault('Authorization', _jsonapi_global.auth_header)
+    if content_type is not None:
+        headers.setdefault('Content-Type', content_type)
 
     response = requests.request(method, url, headers=headers,
-                                allow_redirects=allow_redirects, files=files,
+                                data=data, files=files,
+                                allow_redirects=allow_redirects,
                                 **kwargs)
 
     if not response.ok:

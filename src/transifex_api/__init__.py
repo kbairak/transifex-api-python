@@ -39,5 +39,18 @@ class ResourceTranslation(JsonApiResource):
     EDITABLE = ["strings", 'reviewed', "proofread"]
 
 
-class ResourceStringAsyncUpload(JsonApiResource):
+class ResourceStringsAsyncUpload(JsonApiResource):
     TYPE = "resource_strings_async_uploads"
+
+    @classmethod
+    def upload(cls, resource, content):
+        """ Upload source content with multipart/form-data.
+
+            :param resource: A (transifex) Resource instance or ID
+            :param content: A string or file-like object
+        """
+
+        if isinstance(resource, Resource):
+            resource = resource.id
+        return cls.create_with_form(data={'resource': resource},
+                                    files={'content': content})
