@@ -374,10 +374,6 @@ class Resource(metaclass=_JsonApiMeta):
         instance.reload(include=include)
         return instance
 
-    def follow(self):
-        if self.redirect is not None:
-            return Queryset(self.redirect)
-
     def fetch(self, *relationship_names, force=False):
         """ Fetches 'relationship', if it wasn't included when fetching 'self';
             `force=True` supported. Usage:
@@ -467,7 +463,7 @@ class Resource(metaclass=_JsonApiMeta):
         if self.id is not None:
             response_body = self._save_existing(*fields)
         else:
-            response_body = self._save_new()
+            response_body = self._save_new(*fields)
         data = response_body['data']
 
         related = deepcopy(self.r)
@@ -495,30 +491,32 @@ class Resource(metaclass=_JsonApiMeta):
 
     def _save_existing(self, *fields):
         payload = self.as_resource_identifier()
+        payload.update(self._generate_data_for_saving(*fields))
+        return _jsonapi_request('patch', self._get_url(),
+                                json={'data': payload})
+
+    def _save_new(self, *fields):
+        url = f"/{self.TYPE}"
+        payload = {'type': self.TYPE}
+        payload.update(self._generate_data_for_saving(*fields))
+        return _jsonapi_request('post', url, json={'data': payload})
+
+    def _generate_data_for_saving(self, *fields):
+        result = {}
         editable_fields = fields or self.EDITABLE
         if editable_fields is not None:
             for field in editable_fields:
                 if field in self.a:
-                    payload.setdefault('attributes', {})[field] = self.a[field]
+                    result.setdefault('attributes', {})[field] = self.a[field]
                 elif field in self.R:
-                    payload.setdefault('relationships', {})[field] =\
+                    result.setdefault('relationships', {})[field] =\
                         self.R[field]
         else:
             if self.a:
-                payload['attributes'] = self.a
+                result['attributes'] = self.a
             if self.R:
-                payload['relationships'] = self.R
-        return _jsonapi_request('patch', self._get_url(),
-                                json={'data': payload})
-
-    def _save_new(self):
-        url = f"/{self.TYPE}"
-        payload = {'type': self.TYPE}
-        if self.a:
-            payload['attributes'] = self.a
-        if self.R:
-            payload['relationships'] = self.R
-        return _jsonapi_request('post', url, json={'data': payload})
+                result['relationships'] = self.R
+        return result
 
     @classmethod
     def create(cls, *args, **kwargs):
@@ -536,6 +534,7 @@ class Resource(metaclass=_JsonApiMeta):
         instance.save()
         return instance
 
+    # Handling files
     @classmethod
     def create_with_form(cls, *, type=None, **kwargs):
         """ Simply fowrard kwargs to requests, for non
@@ -546,6 +545,10 @@ class Resource(metaclass=_JsonApiMeta):
             type = cls.TYPE
         response_body = _jsonapi_request('post', f"/{type}", **kwargs)
         return cls.new(response_body)
+
+    def follow(self):
+        if self.redirect is not None:
+            return Queryset(self.redirect)
 
     def delete(self):
         """ Deletes a resource from the API. Usage:
