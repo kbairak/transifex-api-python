@@ -212,7 +212,7 @@ parent.related
  parent.related['children'][0].relationships)
 # ("1",
 #  {'name': "Hercules"},
-#  {'parent': {'data': {'type': "parents", 'id': "Zeus"},
+#  {'parent': {'data': {'type': "parents", 'id': "1"},
 #              'links': {'self': "/children/1/relationships/parent",
 #                        '/parents/1'}}})
 ```
@@ -599,10 +599,10 @@ with open(...) as f:
         data={'resource': resource.id},
         files={'content': f},
     )
-strings = None
-while strings is None:
+while True:
     if upload.redirect:
         strings = upload.follow()
+        break
     sleep(5)
     upload.reload()
 ```
