@@ -539,9 +539,28 @@ Furthermore, `bulk_update` accepts a `fields` keyword argument with the
 `attributes` and `relationships` of the objects it will attempt to update.
 
 ```python
-# Delete parent's 3 first children
-parent.fetch('children')
-Child.bulk_delete(parent.children[:3])
+# Bulk-create
+Child.bulk_create([Child(attributes={'name': "One"},
+                         relationships={'parent': parent}),
+                   {'attributes': {'name': "Two"},
+                    'relationships': {'parent': parent}},
+                   ({'name': "Three"}, {'parent': parent})])
+
+# Bulk-update
+child_a = Child.get("a")
+child_a.married = True
+
+Child.bulk_update([child_a,
+                   {'attributes': {'married': True}, 'id': "b"},
+                   ({'married': True}, None, "c")],
+                  fields=['married'])
+
+# Bulk delete
+child_a = Child.get("a")
+Child.bulk_delete([child_a, {'id': "b"}, (None, None, "c")])
+
+parent = Parent.get("1")
+Child.delete(list(parent.children.all()))
 ```
 
 For more details, see our
@@ -613,11 +632,11 @@ organizations = {organization.slug: organization
 organization = organizations['kb_org']
 
 projects = {project.slug: project
-            for project in Project.filter(organization=organization)}
+            for project in Project.filter(organization=organization).all()}
 project = projects['kb1']
 
 resources = {resource.slug: resource
-             for resource in Resource.filter(project=project)}
+             for resource in Resource.filter(project=project).all()}
 resource = resources['fileless']
 
 project.fetch('languages')

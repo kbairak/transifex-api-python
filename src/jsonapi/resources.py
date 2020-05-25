@@ -548,7 +548,13 @@ class Resource(metaclass=_JsonApiMeta):
 
     def follow(self):
         if self.redirect is not None:
-            return Queryset(self.redirect)
+            response_body = _jsonapi_request('get', self.redirect)
+            if isinstance(response_body['data'], list):
+                return Queryset.from_data(response_body)
+            elif isinstance(response_body['data'], dict):
+                return Resource.new(response_body)
+            else:  # Unreachable code
+                raise ValueError("Unknown format while following redirect")
 
     def delete(self):
         """ Deletes a resource from the API. Usage:
