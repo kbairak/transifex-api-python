@@ -2,6 +2,31 @@
 
 A python SDK for the [Transifex API (v3)](https://transifex.github.io/openapi/)
 
+## Table of contents
+
+<!--ts-->
+* [Introduction](#introduction)
+* [Transifex-flavored {json:api}](#transifex-flavored-jsonapi)
+* [Installation](#installation)
+* [jsonapi usage](#jsonapi-usage)
+   * [Setting up](#setting-up)
+   * [Getting a single resource object from the API](#getting-a-single-resource-object-from-the-api)
+   * [Fetching relationships](#fetching-relationships)
+   * [Shortcuts](#shortcuts)
+   * [Getting many resource objects at the same time](#getting-many-resource-objects-at-the-same-time)
+   * [Prefetching relationships with include](#prefetching-relationships-with-include)
+   * [Saving changes, creating new resources](#saving-changes-creating-new-resources)
+   * [Deleting](#deleting)
+   * [Editing relationships](#editing-relationships)
+   * [Bulk operations](#bulk-operations)
+   * [Form uploads, redirects](#form-uploads-redirects)
+* [transifex_api usage](#transifex_api-usage)
+* [Tests](#tests)
+
+<!-- Added by: kbairak, at: Mon 25 May 2020 11:40:31 PM EEST -->
+
+<!--te-->
+
 ## Introduction
 
 This repository introduces 2 packages: `jsonapi` and `transifex_api`. `jsonapi`
@@ -17,13 +42,7 @@ all guidelines of the {json:api} specification, plus a few more that are not
 universal. We call these extra guidelines: **_Transifex-flavored {json:api}_**
 and they consist of the following:
 
-1. Authorization is done via the `Authorization` HTTP header
-
-2. Collection endpoints always have the form `/<type>` and all resource
-   endpoints always have the form `/<type>/<id>` (this is not required by the
-   {json:api} specification, but is recommended)
-
-3. A resource's relationship to another can either be:
+1. A resource's relationship to another can either be:
 
    1. A **singular-null** relationship which will be represented by a null
       value:
@@ -62,14 +81,23 @@ and they consist of the following:
        "data": {"...": "..."}}
       ```
 
-4. Client-generated IDs are not supported, ie if a resource on the SDK's side
+   This is important because `jsonapi` will make assumptions about the nature
+   of relationships based on the existence of these fields.
+
+2. Collection endpoints always have the form `/<type>` and all resource
+   endpoints always have the form `/<type>/<id>` (this is not required by the
+   {json:api} specification, but is recommended)
+
+3. Client-generated IDs are not supported, ie if a resource on the SDK's side
    has a non-null ID field, then it will be considered pre-existing (`.save()`
    will trigger a PATCH request) and if it doesn't, it will be considered
    unsaved (`.save()` will trigger a POST request)
 
-5. The API may support bulk operations, which use the
+4. The API may support bulk operations, which use the
    `application/vnd.api+json;profile="bulk"` Content-Type, as described by our
-   [bulk oprations {json:api} profile](https://github.com/transifex/openapi/blob/devel/txapi_spec/bulk_profile.md)
+   [bulk operations {json:api} profile](https://github.com/transifex/openapi/blob/devel/txapi_spec/bulk_profile.md)
+
+5. Authorization is done via the `Authorization` HTTP header
 
 
 ## Installation
@@ -239,7 +267,7 @@ Furthermore, you can access all keys in `attributes` and `related` directly on
 the resource object:
 
 ```python
-child.attributes['name'] == child.a['name'] == child.name == "Hercules"
+child.name == child.attributes['name'] == child.a['name'] == "Hercules"
 # True
 ```
 
@@ -257,9 +285,9 @@ child.name = "Achilles"
 child.__dict__
 # {'id': ..., 'attributes': {'name': "Achilles"}, 'related': ..., 'relationships': ..., 'links': ...}
 
-child.hair_color = "Blond"
+child.hair_color = "red"
 child.__dict__
-# {'id': ..., 'attributes': {'name': "Achilles"}, 'hair_color': "Blonde", 'related': ..., 'relationships': ..., 'links': ...}
+# {'id': ..., 'attributes': {'name': "Achilles"}, 'hair_color': "red", 'related': ..., 'relationships': ..., 'links': ...}
 ```
 
 Be careful of this because the new keys will not be included in subsequent
@@ -271,9 +299,9 @@ to an object's `attributes` or `relationships`, you can always fall back to
 doing so directly:
 
 ```python
-child.attrbutes['hair_color'] = "Blond"
+child.attrbutes['hair_color'] = "red"
 # or
-child.a['hair_color'] = "Blond"
+child.a['hair_color'] = "red"
 ```
 
 ### Getting many resource objects at the same time
@@ -290,32 +318,73 @@ children = Child.list()
 Each method does the following:
 
 - `list` returns the first page of the results
+
 - `filter` applies filters; nested filters are separated by double underscores
-  (`__`), Django-style: `.filter(a=1)` will send `?filter[a]=1` to the API
-  while `.filter(a__b=1)` will send `?filter[a][b]=1`
+  (`__`), Django-style
+
+  | operation         | GET request       |
+  |-------------------|-------------------|
+  | `.filter(a=1)`    | `?filter[a]=1`    |
+  | `.filter(a__b=1)` | `?filter[a][b]=1` |
+
+  _Note: because it's a common use-case, using a resource object as the value
+  of a filter operation will result in using its `id` field_
+
+  ```python
+  parent = Parent.get("1")
+
+  Child.filter(parent=parent)
+  # is equivalent to
+  Child.filter(parent=parent.id)
+  ```
+
 - `page` applies pagination; it accepts either one positional argument which
   will be passed to the `page` GET parameter or multiple keyword arguments
-  which will be passed as nested `page` GET parameters: `.page(1)` will send
-  `?page=1` to the API while `.page(a=1, b=2)` will send `?page[a]=1&page[b]=2`
+  which will be passed as nested `page` GET parameters
+
+  | operation         | GET request            |
+  |-------------------|------------------------|
+  | `.page(1)`        | `?page=1`              |
+  | `.page(a=1, b=2)` | `?page[a]=1&page[b]=2` |
+
   (_Note: you will probably not have to use `.page` yourself since the returned
   lists support pagination on their own, see below_)
+
 - `include` will set the `include` GET parameter; it accepts multiple
   positional arguments which it will join with commas (`,`)
+
+  | operation                   | GET request           |
+  |-----------------------------|-----------------------|
+  | `.include('parent', 'pet')` | `?include=parent,pet` |
+
 - `sort` will set the `sort` GET parameter; it accepts multiple positional
   arguments which it will join with commas (`,`)
+
+  | operation              | GET request      |
+  |------------------------|------------------|
+  | `.sort('age', 'name')` | `?sort=age,name` |
+
 - `fields` will set the `fields` GET parameter; it accepts multiple positional
   arguments which it will join with commas (`,`)
+
+  | operation                | GET request        |
+  |--------------------------|--------------------|
+  | `.fields('age', 'name')` | `?fields=age,name` |
+
 - `extra` accepts any keyword arguments which will be added to the GET
   parameters sent to the API
+
+  | operation                | GET request     |
+  |--------------------------|-----------------|
+  | `.extra(group_by="age")` | `?group_by=age` |
+
 - `all` returns a generator that will yield all results of a paginated
   collection, using multiple requests if necessary; the pages are fetched
   on-demand, so if you abort the generator early, you will not be performing
   requests against every possible page
+
 - `all_pages` returns a generator of non-empty pages; similarly to `all`, pages
   are fetched on-demand (in fact, `all` uses `all_pages` internally)
-
-_Note: because it's a common use-case, using an object as the value of a filter
-operation will result in using its `id` field_
 
 All the above methods can be chained to each other. So:
 
@@ -457,6 +526,9 @@ child.delete()
 
 # Will create a new child with the same name and parent as the previous one
 child.save('name', 'parent')
+
+child.id == "1"
+# False
 ```
 
 ### Editing relationships
@@ -648,6 +720,7 @@ translations = ResourceTranslation.\
     include('resource_string')
 translation = translations[0]
 
+# Let's translate something
 if not translation.strings:
     source_string = translation.resource_string.strings['other']
     translation.strings = {'other': source_string + " in greeeek!!!"}
