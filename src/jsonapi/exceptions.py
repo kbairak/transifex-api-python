@@ -41,11 +41,6 @@ class JsonApiException(Exception):
     # Shortcuts that make sense if len(errors) == 1
     def first_error_property(field):
         def _get(self):
-            if len(self.errors) != 1:
-                raise ValueError(
-                    f"You should not attempt to access '{field}' on an "
-                    f"exception with more than 1 errors"
-                )
             return getattr(self.errors[0], field)
         return property(_get)
 
@@ -64,5 +59,5 @@ class JsonApiError:
         self.detail = detail
         self.source = source
 
-    def __repr__(self):
+    def __repr__(self):  # pragma: no cover
         return f"<JsonApiError: {self.code} - {self.detail}>"

@@ -16,7 +16,7 @@ class Parent(jsonapi.Resource):
     TYPE = "parents"
 
 
-jsonapi.setup("test_api_key")
+jsonapi.setup("test_api_key", host)
 
 
 child_payloads = Payloads(

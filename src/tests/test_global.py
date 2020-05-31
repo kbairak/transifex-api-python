@@ -6,7 +6,7 @@ from .constants import host
 
 
 def reset_setup():
-    jsonapi.setup("test_api_key")
+    jsonapi.setup("test_api_key", host)
     assert _jsonapi_global.auth_header == "Bearer test_api_key"
     assert _jsonapi_global.host == host
 
@@ -27,10 +27,10 @@ def test_setup_plaintext():
 
 
 def test_setup_ulf():
-    jsonapi.setup(ULFAuthentication('public'))
+    jsonapi.setup(ULFAuthentication('public'), host)
     assert _jsonapi_global.auth_header == "ULF public"
 
-    jsonapi.setup(ULFAuthentication('public', 'secret'))
+    jsonapi.setup(ULFAuthentication('public', 'secret'), host)
     assert _jsonapi_global.auth_header == "ULF public:secret"
 
     reset_setup()

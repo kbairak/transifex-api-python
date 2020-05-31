@@ -5,11 +5,15 @@ from jsonapi.querysets import Queryset
 from .constants import host
 from .payloads import Payloads
 
-jsonapi.setup("test_api_key")
+jsonapi.setup("test_api_key", host)
 
 
 class Item(jsonapi.Resource):
     TYPE = "items"
+
+
+class Tag(jsonapi.Resource):
+    TYPE = "tags"
 
 
 payloads = Payloads('items')
@@ -140,3 +144,27 @@ def test_filter():
     assert (list(Item.filter(odd=1)) ==
             list(Item.list().filter(odd=1)) ==
             list(Item.filter(odd=2).filter(odd=1)))
+
+
+@responses.activate
+def test_include():
+    responses.add(responses.GET, f"{host}/items", json={
+        'data': [{'type': "items",
+                  'id': "1",
+                  'relationships': {'tag': {'data': {'type': "tags",
+                                                     'id': "1"}}}},
+                 {'type': "items",
+                  'id': "2",
+                  'relationships': {'tag': {'data': {'type': "tags",
+                                                     'id': "2"}}}}],
+        'included': [{'type': "tags",
+                      'id': "1",
+                      'attributes': {'name': "tag1"}},
+                     {'type': "tags",
+                      'id': "2",
+                      'attributes': {'name': "tag2"}}],
+    })
+
+    item1, item2 = Item.list()
+    assert item1.tag.name == "tag1"
+    assert item2.tag.name == "tag2"

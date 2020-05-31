@@ -6,7 +6,7 @@ import jsonapi
 
 from .constants import host
 
-jsonapi.setup("test_api_key")
+jsonapi.setup("test_api_key", host)
 
 
 class Foo(jsonapi.Resource):

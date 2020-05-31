@@ -1,2 +1,2 @@
-- [ ] Unify Page and Queryset
+- [x] Unify Page and Queryset
 - [ ] Read openapi spec to prefill filters somehow

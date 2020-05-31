@@ -6,7 +6,7 @@ import jsonapi
 from .constants import host
 from .payloads import Payloads
 
-jsonapi.setup("test_api_key")
+jsonapi.setup("test_api_key", host)
 
 
 class BulkItem(jsonapi.Resource):

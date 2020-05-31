@@ -1,4 +1,10 @@
-from jsonapi import setup, Resource as JsonApiResource  # noqa
+from jsonapi import setup as jsonapi_setup, Resource as JsonApiResource
+
+
+def setup(auth, host=None):
+    if host is None:
+        host = "https://rest.api.transifex.com"
+    jsonapi_setup(auth, host)
 
 
 class Organization(JsonApiResource):
