@@ -196,6 +196,14 @@ _Reminding that plural relationships only have the `links` field while singular
 relationships have both `links` and `data`. This way, `jsonapi` is able to tell
 that the relationship between `Parent` and `Child` is one-to-many._
 
+You can reload an object from the server by calling `.reload()`:
+
+```python
+child.reload()
+# equivalent to
+child = Child.get(child.id)
+```
+
 In the last example, may have noticed that `child.related` is not empty. This
 happens with singular relationships. If you look closely, however, you will see
 that apart from the `id`, the related parent doesn't have any other data. The
@@ -207,14 +215,6 @@ relationships.
  child.related['parent'].attributes,
  child.related['parent'].relationships)
 # ("1", {}, {})
-```
-
-You can reload an object from the server by calling `.reload()`:
-
-```python
-child.reload()
-# equivalent to
-child = Child.get(child.id)
 ```
 
 ### Fetching relationships
@@ -279,15 +279,17 @@ attribute:
 
 ```python
 child.__dict__
-# {'id': ..., 'attributes': {'name': "Hercules"}, 'related': ..., 'relationships': ..., 'links': ...}
+# {'id': ..., 'attributes': {'name': "Hercules"}, ...}
 
 child.name = "Achilles"
 child.__dict__
-# {'id': ..., 'attributes': {'name': "Achilles"}, 'related': ..., 'relationships': ..., 'links': ...}
+# {'id': ..., 'attributes': {'name': "Achilles"}, ...}
+#                                    ^^^^^^^^^^
 
 child.hair_color = "red"
 child.__dict__
-# {'id': ..., 'attributes': {'name': "Achilles"}, 'hair_color': "red", 'related': ..., 'relationships': ..., 'links': ...}
+# {'id': ..., 'attributes': {'name': "Achilles"}, 'hair_color': "red", ...}
+#                                                 ^^^^^^^^^^^^^^^^^^^
 ```
 
 Be careful of this because the new keys will not be included in subsequent
@@ -527,13 +529,13 @@ child.delete()
 # Will create a new child with the same name and parent as the previous one
 child.save('name', 'parent')
 
-child.id == "1"
+child.id in (None, "1")
 # False
 ```
 
 ### Editing relationships
 
-Changing a singular relationships can happen in two ways (this also depends on
+Changing a singular relationship can happen in two ways (this also depends on
 what the server supports).
 
 ```python
@@ -644,7 +646,7 @@ If an endpoint accepts other content-types apart from
 `application/vnd.api+json` during creation (most likely a `multipart/form-data`
 for file uploads), you can perform such requests using the `.create_with_form`
 classmethod. The keyword arguments you provide will be passed to the `requests`
-library, giving you complete control of the request you want to perform.
+library, giving you complete control over the request you want to perform.
 
 According to {json:api}'s recommendations, an endpoint may return a
 303-redirect response. If that's the case for a `.get()` call, the object's
