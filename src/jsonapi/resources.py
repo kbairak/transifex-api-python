@@ -1,96 +1,3 @@
-""" Mini-SDK for building client libraries on top of a JSONAPI server
-    implementation. Usage:
-
-        >>> import jsonapi
-        >>> jsonapi.setup('http://api.com', 'VERY_SECRET_API_TOKEN')
-
-        >>> class Person(jsonapi.Resource):
-        ...     TYPE = 'people'
-        ...     EDITABLE = 'name'
-
-        >>> people = Person.list(filters={'age[gt]': 28}, include=['parent'])
-        >>> for person in people.all():
-        ...     # `.a` is a shortcut to `.attributes`
-        ...     print(person.a['name'])
-        ...
-        ...     # `.r` is a shortcut to `.related`
-        ...     print(person.r['parent'].a['name'])
-        ...
-        ...     # Fetches 'home' singular relationship
-        ...     person.fetch('home')
-        ...     print(person.r['home'].a['address'])
-        ...
-        ...     # Fetches 'hobbies' plural relationship
-        ...     person.fetch('hobbies')
-        ...     print((hobby.a['name'] for hobby in person.r['hobbies'].all()))
-
-        >>> person_a, person_b = people[:2]
-
-        >>> person_a.a['name'] = "Billy"
-        >>> person_a.save('name')
-        >>> # You can omit 'name' since it's the EDITABLE field
-        >>> person_a.save()
-
-        >>> person_a.change('parent', person_b.R['parent']['data'])
-
-    Assumptions about the server JSONAPI server implementation (apart from
-    those listed in the specification):
-
-    - Authorization is done via the Authorization header.
-
-    - Collection and item endpoints always have the form `/<type>` and
-      `/<type>/<id>` respectively, ie based on the 'TYPE' attribute of the
-      Resource subclasses we are able to determine the URLs where the instances
-      will be fetched from/posted to.
-
-    - A relationship can be either a:
-
-        1. Null singular relationship; null singular relationships are expected
-           to have the `null` value, example:
-
-            {id: XXX,
-             type: XXX,
-             attributes: {...},
-             links: {...},
-             relationships: {parent: null,
-                             ...}}
-
-        2. Not null singular relationship; not null singular relationships are
-           expected to have a required 'data' field and an optional 'links'
-           field, with 'data' being a resource identifier and 'links' having a
-           'related' field. Example:
-
-            {id: XXX,
-             type: XXX,
-             attributes: {...},
-             links: {...},
-             relationships: {parent: {links: {related: XXX, ...},
-                                      data: {type: XXX, id: XXX}},
-                             ...}}
-
-        3. Plural relationship; plural relationships are expected to **not**
-           have a 'data'field, the 'links' field to be required, with 'links'
-           having a 'related' field. Example:
-
-            {id: XXX,
-             type: XXX,
-             attributes: {...},
-             links: {...},
-             relationships: {children: {links: {related: XXX, ...}},
-                             ...}}
-
-    - Client-generated IDs are not supported, ie:
-
-        - Calling `.save()` on a resource instance with a null ID will result
-          in a HTTP POST request that will create the instance on the server
-          and the ID will be overwritten by the response
-
-        - Calling `.save()` on a resource instance with a non-null ID will
-          result in a PATCH HTTP request that will update the instance on the
-          server
-
-"""
-
 import collections
 from copy import deepcopy
 
@@ -421,6 +328,10 @@ class Resource(metaclass=_JsonApiMeta):
                 # Plural relationship
                 url = relationship['links']['related']
                 self.r[relationship_name] = Queryset(url)
+
+        if len(relationship_names) == 1:
+            # This way you can do `project.fetch('languages').filter(...)`
+            return self.r[relationship_names[0]]
 
     @classmethod
     def list(cls):

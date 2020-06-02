@@ -686,7 +686,7 @@ while True:
 As we said before, the `transifex_api` package has minimal code as almost the
 entire functionality is implemented in `jsonapi`. `transifex_api` simply hosts
 the Resource subclasses. You can find them
-[here](/kbairak/transifex-api-python/blob/master/src/transifex_api/__init__.py)
+[here](src/transifex_api/__init__.py)
 and cross-check with the
 [API specification](https://transifex.github.io/openapi/). Assuming you
 understand how the `jsonapi` package works, you should be able to work with

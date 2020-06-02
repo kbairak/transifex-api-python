@@ -1,3 +1,5 @@
+import time
+
 from jsonapi import setup as jsonapi_setup, Resource as JsonApiResource
 
 
@@ -49,14 +51,23 @@ class ResourceStringsAsyncUpload(JsonApiResource):
     TYPE = "resource_strings_async_uploads"
 
     @classmethod
-    def upload(cls, resource, content):
+    def upload(cls, resource, content, interval=5):
         """ Upload source content with multipart/form-data.
 
             :param resource: A (transifex) Resource instance or ID
             :param content: A string or file-like object
+            :param interval: How often (in seconds) to poll for the completion
+                             of the upload job
         """
 
         if isinstance(resource, Resource):
             resource = resource.id
-        return cls.create_with_form(data={'resource': resource},
-                                    files={'content': content})
+
+        upload = cls.create_with_form(data={'resource': resource},
+                                      files={'content': content})
+
+        while True:
+            if upload.redirect:
+                return upload.follow()
+            time.sleep(interval)
+            upload.reload()
