@@ -1,7 +1,7 @@
 class Payloads:
     """ Usage:
 
-        >>> payloads = _Payloads('items')
+        >>> payloads = Payloads('items')
         >>> payloads[1]
         <<< {'type': "items", 'id': "1", 'attributes': {'name': "item 1"}}
         >>> payloads[1:4]

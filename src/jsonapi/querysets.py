@@ -139,10 +139,10 @@ class Queryset(collections.abc.Sequence):
 
         return self.__class__(self._url, params)
 
-    def _param_method(field):
+    def _param_method(param_name):
         def _method(self, *fields):
             params = dict(self._params)
-            params[field] = ','.join(fields)
+            params[param_name] = ','.join(fields)
             return self.__class__(self._url, params)
         return _method
 
