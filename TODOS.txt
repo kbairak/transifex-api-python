@@ -1,2 +1,3 @@
 - [x] Unify Page and Queryset
+- [ ] Make arguments to bulk operations make more sense
 - [ ] Read openapi spec to prefill filters somehow

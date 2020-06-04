@@ -204,10 +204,10 @@ child.reload()
 child = Child.get(child.id)
 ```
 
-In the last example, may have noticed that `child.related` is not empty. This
-happens with singular relationships. If you look closely, however, you will see
-that apart from the `id`, the related parent doesn't have any other data. The
-rest of the data can be fetched with `.fetch()`, as for the plural
+In the last example, you may have noticed that `child.related` is not empty.
+This happens with singular relationships. If you look closely, however, you
+will see that apart from the `id`, the related parent doesn't have any other
+data. The rest of the data can be fetched with `.fetch()`, as for the plural
 relationships.
 
 ```python
@@ -223,7 +223,7 @@ In order to fetch related data, you need to call `.fetch()` with the names of
 the relationships you want to fetch:
 
 ```python
-child.fetch('parent')
+child.fetch('parent')  # Now `related['parents']` has all the information
 (child.related['parent'].id,
  child.related['parent'].attributes,
  child.related['parent'].relationships)
@@ -247,6 +247,21 @@ parent.related
 
 Trying to fetch an already-fetched relationship will not actually trigger
 another request, unless you pass `force=True` to `.fetch()`.
+
+If `.fetch()` is only provided with one positional argument, it will return the
+relation:
+
+```python
+parent = Parent.get("1")
+
+print(parent.fetch('children')[1].name)
+# "Hercules"
+
+# Is equivalent to:
+
+parent.fetch('children')
+print(parent.related['children'][1].name)
+```
 
 ### Shortcuts
 
@@ -413,8 +428,8 @@ supports the applied filters etc on the endpoint specified by the `related`
 link of the relationship).
 
 ```python
-parent.fetch('children')
-print(parent.children.filter(name="Hercules")[0].name)
+
+print(parent.fetch('children').filter(name="Hercules")[0].name)
 
 # Will print the names of the *first page* of the children
 print([child.name for child in parent.children])
@@ -597,6 +612,16 @@ parent.add('children', [Child.get("1"),
                         {'data': {'type': "children", 'id': "4"}}])
 ```
 
+This way, you can easily use another object's plural relationship:
+
+```python
+parent_a = Parent.get('1')
+parent_b = Parent.get('2')
+
+# Make sure 'parent_b' has the same children as 'parent_a'
+parent_b.reset('children', list(parent_a.fetch('children').all()))
+```
+
 ### Bulk operations
 
 Resource subclasses provide the `bulk_delete`, `bulk_create` and `bulk_update`
@@ -649,11 +674,12 @@ classmethod. The keyword arguments you provide will be passed to the `requests`
 library, giving you complete control over the request you want to perform.
 
 According to {json:api}'s recommendations, an endpoint may return a
-303-redirect response. If that's the case for a `.get()` call, the object's
-`id`, `attributes`, `links`, `relationships` and `related` attributes will be
-empty. What will be there is a `redirect` attribute set to the response's
-`Location` header's value. Calling `.follow()` on such an object will retrieve
-that location and process the response using the appropriate class.
+303-redirect response. If that's the case for a `.get()` or `.reload()` call,
+the object's `id`, `attributes`, `links`, `relationships` and `related`
+attributes will be empty. What will be there is a `redirect` attribute set to
+the response's `Location` header's value. Calling `.follow()` on such an object
+will retrieve that location and process the response using the appropriate
+class.
 
 Given these two mechanisms, here is how you might go about performing a
 [source file upload](https://transifex.github.io/openapi/#tag/Resource-Strings/paths/~1resource_strings_async_uploads/post)
@@ -705,16 +731,15 @@ organizations = {organization.slug: organization
                  for organization in transifex_api.Organization.all()}
 organization = organizations['kb_org']
 
-projects = {project.slug: project
-            for project in Project.filter(organization=organization).all()}
-project = projects['kb1']
+projects = transifex_api.Project.filter(organization=organization, slug="kb1")
+project = projects[0]
 
 resources = {resource.slug: resource
              for resource in Resource.filter(project=project).all()}
 resource = resources['fileless']
 
-project.fetch('languages')
-languages = {language.code: language for language in project.languages.all()}
+languages = {language.code: language
+             for language in project.fetch('languages').all()}
 language = languages['el']
 
 translations = ResourceTranslation.\
