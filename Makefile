@@ -1,6 +1,8 @@
-test_nocapture:
+tests:
 	pytest --cov=. --cov-report=term-missing
 
-test:
-	pytest -s --cov=. --cov-report=term-missing
+debugtests:
+	pytest -s
 
+watchtests:
+	pytest-watch

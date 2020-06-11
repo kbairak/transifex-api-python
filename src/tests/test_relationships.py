@@ -37,6 +37,27 @@ parent_payloads = Payloads(
 
 
 @responses.activate
+def test_initialization():
+    responses.add(responses.GET, f"{host}/parents/1",
+                  json={'data': {'type': "parents", 'id': "1"}})
+    parents = [Parent.get('1'),
+               Parent(id='1'),
+               {'data': {'type': "parents", 'id': '1'}},
+               {'type': "parents", 'id': '1'}]
+    children = [Child(relationships={'parent': parent})
+                for parent in parents]
+    assert all((children[i] == children[i + 1]
+                for i in range(len(children) - 1)))
+    assert all((children[i].__dict__ == children[i + 1].__dict__
+                for i in range(len(children) - 1)))
+    assert all((children[i].parent.__dict__ == children[i + 1].parent.__dict__
+                for i in range(len(children) - 1)))
+
+    child = Child(relationships={'parent': None})
+    assert child.R == child.r == {'parent': None}
+
+
+@responses.activate
 def test_singular_fetch():
     responses.add(responses.GET, f"{host}/parents/1",
                   json={'data': parent_payloads[1]})

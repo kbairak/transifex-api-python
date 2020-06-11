@@ -44,12 +44,12 @@ class Resource(metaclass=_JsonApiMeta):
               'related'
 
                 >>> user = User(id="1")
-                >>> user.reload()  # will use 'type' and 'id' to fetch from API
+                >>> user.reload()  # Will use 'type' and 'id' to fetch from API
 
                 >>> parent = ...
                 >>> user = User(attributes={'username': "Bill"},
                 ...             relationships={'parent': parent})
-                >>> user.save()  # Will receive an 'id' from the API
+                >>> user.save()  # Will save and receive an 'id' from the API
 
             - The json body of a response
 
@@ -68,6 +68,28 @@ class Resource(metaclass=_JsonApiMeta):
                 >>> parent = Parent(user.R['parent']['data'])
 
                 >>> parent.reload()  # To fetch the rest of the fields
+
+            For relationships you can use:
+
+            - Another resource object:
+
+                >>> User(relationships={'parent': Parent('id')})
+                >>> User(relationships={'parent': Parent.get('1')})
+
+            - A relationship or resource idntifier:
+
+                >>> User(relationships={'parent': {'type': "parents",
+                ...                                'id': "1"}})
+                >>> User(relationships={'parent': {'data': {'type': "parents",
+                ...                                         'id': "1"},
+                ...                                'links': {'related': "...",
+                ...                                          'links': "..."}}})
+                >>> User(relationships={'parent': {'links': {'related': "...",
+                ...                                          'links': "..."}}})
+
+            - None:
+
+                >>> User(relationships={'parent': None})
         """
 
         if type is not None and type != self.TYPE:
@@ -116,23 +138,13 @@ class Resource(metaclass=_JsonApiMeta):
 
         self.redirect = redirect
 
-        self.relationships = {}
+        self.relationships, self.related = {}, {}
         if relationships is not None:
             for key, value in deepcopy(relationships).items():
-                if isinstance(value, Resource):
-                    self.R[key] = value.as_relationship()
-                else:
-                    self.R[key] = value
-
-        # Enhance 'self.related'
-        self.related = {}
-        for relationship_name, relationship in self.R.items():
-            if relationship is None:
-                # Singular null
-                self.r[relationship_name] = None
-            elif 'data' in relationship:
-                # Singular not null
-                self.r[relationship_name] = Resource.new(relationship)
+                self._set_relationship(key, value)
+                if self.R[key] is None or 'data' in self.R[key]:
+                    # Singular relationship
+                    self.set_related(key, value)
 
         if included is not None:
             included = {(item['type'], item['id']): item for item in included}
@@ -142,10 +154,70 @@ class Resource(metaclass=_JsonApiMeta):
                 key = (relationship['data']['type'],
                        relationship['data']['id'])
                 if key in included:
-                    self.r[relationship_name] = Resource.new(included[key])
+                    self.set_related(relationship_name, included[key])
 
         if related is not None:
-            self.r.update(deepcopy(related))
+            for key, value in related.items():
+                self.set_related(key, value)
+
+    def _set_relationship(self, key, value):
+        """ Set 'value' as 'key' relationship. For value we accept:
+
+            - A Resource object
+            - A relationship (a dict with either 'data', 'links' or both)
+            - A resource identifier (a dict with 'type' and 'id')
+            - None
+
+            Regardless, in the end `self.relationships` will resemble an API
+            response's relationships.
+        """
+
+        if isinstance(value, Resource):
+            self.R[key] = value.as_relationship()
+        else:
+            if value is not None and set(value.keys()) == {'type', 'id'}:
+                # Resource identifier was passed
+                value = {'data': value}
+            if value is None or 'data' in value or 'links' in value:
+                self.R[key] = value
+            else:
+                raise ValueError("Invalid value '{value}' for relationship")
+
+    def set_related(self, key, value):
+        """ Set 'value' as 'key' relationship's value. Works only with singular
+            relationships. For value we accept:
+
+            - A Resource object
+            - A JSON representation of a Resource object
+            - A full API response of a Resource object
+            - A relationship (a dict with a 'data' field)
+            - A resource identifier (a dict with 'type' and 'id')
+            - None
+
+            Regardless, in the end `self.related[key]` will be a Resource
+            instance or None.
+        """
+
+        if key not in self.R:
+            raise ValueError(f"Cannot change relationship '{key}' because "
+                             f"it's not an existing relationship.")
+        if self.R[key] is not None and 'data' not in self.R[key]:
+            raise ValueError(f"Cannot change relationship '{key}' because "
+                             f"it's a plural relationship. Use '.add()', "
+                             f"'.remove()' or '.reset()' instead.")
+
+        value = Resource.as_resource(value)
+        from_null_to_not_null = self.R[key] is None and value is not None
+        from_not_null_to_null = self.R[key] is not None and value is None
+        data_changed = (self.R[key] is not None and
+                        value is not None and
+                        self.R[key]['data'] != value.as_resource_identifier())
+        if from_null_to_not_null or from_not_null_to_null or data_changed:
+            if value is None:
+                self.R[key] = None
+            else:
+                self.R[key] = value.as_relationship()
+        self.r[key] = value
 
     @classmethod
     def new(cls, data=None, *, type=None, **kwargs):
@@ -230,17 +302,10 @@ class Resource(metaclass=_JsonApiMeta):
         elif attr in self.a:
             self.a[attr] = value
         elif attr in self.R:
-            if self.R[attr] is None or 'data' in self.R[attr]:
-                value = Resource.as_resource(value)
-                self.R[attr] = value.as_relationship()
-                self.r[attr] = value
-            else:
-                raise AttributeError(
-                    f"You can't set the '{attr}' relationship on a "
-                    f"{self.__class__.__name__} instance because it is a "
-                    f"plural relationship. Use '.add()', '.remove()' or "
-                    f"'.reset()' instead."
-                )
+            try:
+                self.set_related(attr, value)
+            except ValueError as e:
+                raise AttributeError(str(e))
         else:
             super().__setattr__(attr, value)
 

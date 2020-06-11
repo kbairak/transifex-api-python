@@ -580,6 +580,36 @@ something like `/children/1/relationships/parent`, with a body of:
 {"data": {"type": "parents", "id": "2"}}
 ```
 
+If you want to use the first way, you could also change the relationship
+directly:
+
+```python
+child.relationships['parent'] = {'data': {'type': "parents", 'id': "2"}}
+# or
+child.R['parent'] = {'data': {'type': "parents", 'id': "2"}}
+
+child.save('parent')
+```
+
+However, this poses a danger. `relationships` and `related` are supposed to be
+in sync with each other and, if you change one or the other directly, they may
+stop being in sync which may generate some confusion later. A successful
+`.save()` will rewrite the relationships so you should be OK. However, if you
+want to be safe, you should use the `.set_related()` method to edit
+relationships:
+
+```python
+child.set_related('parent', Parent(id="2"))
+```
+
+or use the relationship's name shortcut:
+
+```python
+child.parent = Parent(id="2")
+```
+
+(the shortcut uses `.set_related()` during assignment internally anyway)
+
 For changing plural relationships, you can use one of the `add`, `remove` and
 `reset` methods:
 
