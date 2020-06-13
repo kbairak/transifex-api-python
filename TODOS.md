@@ -77,6 +77,9 @@
       return not has_data(obj) and has_links(obj)
   ```
 
-- [ ] Make arguments to bulk operations make more sense
+- [ ] Authentication should store a whole dict which will be merged with
+  headers
+
+- [x] Make arguments to bulk operations make more sense
 
 - [ ] Read openapi spec to prefill filters somehow

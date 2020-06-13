@@ -391,7 +391,10 @@ class Resource(metaclass=_JsonApiMeta):
                 self.r[relationship_name].reload()
             else:
                 # Plural relationship
-                url = relationship['links']['related']
+                url = relationship.\
+                    get('links', {}).\
+                    get('related',
+                        f"/{self.TYPE}/{self.id}/{relationship_name}")
                 self.r[relationship_name] = Queryset(url)
 
         if len(relationship_names) == 1:
@@ -523,14 +526,15 @@ class Resource(metaclass=_JsonApiMeta):
         return cls.new(response_body)
 
     def follow(self):
-        if self.redirect is not None:
-            response_body = _jsonapi_request('get', self.redirect)
-            if isinstance(response_body['data'], list):
-                return Queryset.from_data(response_body)
-            elif isinstance(response_body['data'], dict):
-                return Resource.new(response_body)
-            else:  # Unreachable code
-                raise ValueError("Unknown format while following redirect")
+        if self.redirect is None:
+            raise ValueError("Cannot follow a non-redirect response")
+        response_body = _jsonapi_request('get', self.redirect)
+        if isinstance(response_body['data'], collections.abc.Sequence):
+            return Queryset.from_data(response_body)
+        elif isinstance(response_body['data'], collections.abc.Mapping):
+            return Resource.new(response_body)
+        else:  # Unreachable code
+            raise ValueError("Unknown format while following redirect")
 
     def delete(self):
         """ Deletes a resource from the API. Usage:
@@ -653,7 +657,9 @@ class Resource(metaclass=_JsonApiMeta):
         self._edit_plural_relationship('patch', field, values)
 
     def _edit_relationship(self, method, field, value):
-        url = self.R[field]['links']['self']
+        url = self.R[field].\
+            get('links', {}).\
+            get('self', f"/{self.TYPE}/{self.id}/relationships/{field}")
         _jsonapi_request(method, url, json={'data': value})
 
     def _edit_plural_relationship(self, method, field, values):
@@ -669,6 +675,14 @@ class Resource(metaclass=_JsonApiMeta):
             this using the 'bulk' profile with the
             'application/vnd.api+json;profile="bulk"' Content-Type header.
 
+            Accepts a list of:
+
+              - Full JSON responses representing a resource object
+              - Resource objects
+              - Resource identifiers
+              - Relationships
+              - IDs
+
             Doesn't return anything, but will raise an exception if something
             went wrong.
 
@@ -679,12 +693,12 @@ class Resource(metaclass=_JsonApiMeta):
         """
 
         payload = []
+
         for item in items:
-            attributes, relationships, id = cls._extract_from_item(item)
-            if id is None:
-                raise ValueError("Attempting to delete instance without an "
-                                 "'id'")
-            payload.append({'type': cls.TYPE, 'id': id})
+            item = Resource.as_resource(item)
+            if not isinstance(item, Resource):
+                item = cls(id=item)
+            payload.append(item.as_resource_identifier())
 
         _jsonapi_request('delete', f"/{cls.TYPE}", json={'data': payload},
                          bulk=True)
@@ -719,18 +733,22 @@ class Resource(metaclass=_JsonApiMeta):
 
         payload = []
         for item in items:
-            attributes, relationships, id = cls._extract_from_item(item)
-            if id is not None:
+            if isinstance(item, collections.abc.Sequence):
+                attributes, relationships = item
+                item = cls(attributes=attributes, relationships=relationships)
+            else:
+                item = Resource.as_resource(item)
+                if not isinstance(item, Resource):
+                    item = cls(attributes=item)
+
+            if item.id is not None:
                 raise ValueError("'id' supplied as part of a new instance")
 
             payload.append({'type': cls.TYPE})
-            if attributes:
-                payload[-1]['attributes'] = attributes
-            if relationships:
-                payload[-1]['relationships'] = {
-                    key: Resource.as_resource(value).as_relationship()
-                    for key, value in relationships.items()
-                }
+            if item.a:
+                payload[-1]['attributes'] = item.a
+            if item.R:
+                payload[-1]['relationships'] = item.R
 
         response_body = _jsonapi_request('post', f"/{cls.TYPE}",
                                          json={'data': payload}, bulk=True)
@@ -746,7 +764,9 @@ class Resource(metaclass=_JsonApiMeta):
                 - API resource instances (with IDs)
                 - Dictionaries with (optional) 'attributes', 'relationships'
                   and (required) 'id' fields
-                - 3-tuples of 'attributes', 'relationships', 'id'
+                - 3-tuples of 'id', 'attributes', 'relationships'
+                - 2-tuples of 'id', 'attributes'
+                - 'ids' (maybe we just want the server to update a timestamp)
 
             Returns a list of the updated instances.
 
@@ -763,11 +783,27 @@ class Resource(metaclass=_JsonApiMeta):
 
         payload = []
         for item in items:
-            attributes, relationships, id = cls._extract_from_item(item)
-            if id is None:
+
+            if (isinstance(item, collections.abc.Sequence) and
+                    not isinstance(item, str)):
+                try:
+                    id, attributes, relationships = item
+                except ValueError:
+                    id, attributes = item
+                    relationships = None
+                item = cls(id=id,
+                           attributes=attributes,
+                           relationships=relationships)
+            else:
+                item = Resource.as_resource(item)
+                if not isinstance(item, Resource):
+                    item = cls(id=item)
+
+            if item.id is None:
                 raise ValueError("'id' not supplied as part of an update "
                                  "operation")
 
+            attributes, relationships = item.a, item.R
             if fields:
                 if attributes is not None:
                     attributes = {key: value
@@ -778,7 +814,7 @@ class Resource(metaclass=_JsonApiMeta):
                                      for key, value in relationships.items()
                                      if key in fields}
 
-            payload.append({'type': cls.TYPE, 'id': id})
+            payload.append({'type': cls.TYPE, 'id': item.id})
             if attributes:
                 payload[-1]['attributes'] = attributes
             if relationships:
@@ -790,33 +826,6 @@ class Resource(metaclass=_JsonApiMeta):
         response_body = _jsonapi_request('patch', f"/{cls.TYPE}",
                                          json={'data': payload}, bulk=True)
         return Queryset.from_data(response_body)
-
-    @staticmethod
-    def _extract_from_item(item):
-        if isinstance(item, Resource):
-            return item.a, item.R, item.id
-
-        if isinstance(item, collections.abc.Mapping) and 'data' in item:
-            item = item['data']
-
-        if (isinstance(item, collections.abc.Mapping) and
-                any(('attributes' in item,
-                     'relationships' in 'item',
-                     'id' in item))):
-            return (item.get('attributes', None),
-                    item.get('relationships', None),
-                    item.get('id', None))
-
-        try:
-            attributes, relationships, id = item
-        except ValueError:
-            try:
-                attributes, relationships = item
-                id = None
-            except ValueError:
-                attributes = item
-                relationships, id = None, None
-        return attributes, relationships, id
 
     # Utils
     def __eq__(self, other):

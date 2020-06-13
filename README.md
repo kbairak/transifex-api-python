@@ -656,13 +656,8 @@ parent_b.reset('children', list(parent_a.fetch('children').all()))
 
 Resource subclasses provide the `bulk_delete`, `bulk_create` and `bulk_update`
 classmethods for API endpoints that support such operations. The arguments to
-these class methods are lists of:
-
-- resource objects
-- dictionaries with optional `attributes`, `relationships` and `id` keys
-- 3-tuples of `attributes`, `relationships` and `id`
-- 2-tuples of `attributes` and`relationships`
-- `attributes` dictionaries
+these class methods are quite flexible. Consult the docstrings of each method
+for their types or see the following examples.
 
 Furthermore, `bulk_update` accepts a `fields` keyword argument with the
 `attributes` and `relationships` of the objects it will attempt to update.
@@ -680,13 +675,14 @@ child_a = Child.get("a")
 child_a.married = True
 
 Child.bulk_update([child_a,
-                   {'attributes': {'married': True}, 'id': "b"},
-                   ({'married': True}, None, "c")],
+                   {'id': "b", 'attributes': {'married': True}},
+                   ("c", {'married': True}),
+                   "d"],
                   fields=['married'])
 
 # Bulk delete
 child_a = Child.get("a")
-Child.bulk_delete([child_a, {'id': "b"}, (None, None, "c")])
+Child.bulk_delete([child_a, {'id': "b"}, "c"])
 
 parent = Parent.get("1")
 Child.delete(list(parent.children.all()))
