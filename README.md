@@ -97,8 +97,6 @@ and they consist of the following:
    `application/vnd.api+json;profile="bulk"` Content-Type, as described by our
    [bulk operations {json:api} profile](https://github.com/transifex/openapi/blob/devel/txapi_spec/bulk_profile.md)
 
-5. Authorization is done via the `Authorization` HTTP header
-
 
 ## Installation
 
@@ -131,8 +129,12 @@ The first argument is either:
 1. A string, in which case the value of the `Authorization` header sent with
    every request will be `Bearer <API_TOKEN>`, or
 
-2. Any callable object in which case its return value will be used for the
-   `Authorization` header
+2. Any callable object in which case its return value will be merged with the
+   headers that will be sent
+
+   For an example of an authentication method that sends different
+   authorization headers for every request, check the (experimental)
+   [JWT authentication class](src/jsonapi/auth.py#L24)
 
 Creating a class for an API resource which follows the {json:api} and the above
 guidelines is as simple as:

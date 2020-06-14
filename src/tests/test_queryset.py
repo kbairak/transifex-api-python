@@ -5,7 +5,7 @@ from jsonapi.querysets import Queryset
 from .constants import host
 from .payloads import Payloads
 
-jsonapi.setup("test_api_key", host)
+jsonapi.setup(host=host, auth="test_api_key")
 
 
 class Item(jsonapi.Resource):

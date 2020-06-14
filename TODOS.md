@@ -23,7 +23,8 @@
           if auth is not None:
               if callable(auth, str):
                   auth = auth()
-              self.auth_header = f"Bearer {auth}"
+              self.make_auth_headers =\
+              lambda: {'Authorization': f"Bearer {auth}"}
 
           if host is not None:
               self.host = host
@@ -54,6 +55,13 @@
   org = transifex_api.Organization.get('1')
   ```
 
+- [x] Authentication should store a whole dict which will be merged with
+  headers, also it should be able to be dynamic
+
+- [x] Make arguments to bulk operations make more sense
+
+- [ ] Read openapi spec to prefill filters somehow
+
 - [ ] Standardise how the code figures out the nature of JSON objects (whether
   they're singular/plural relationships, API responses etc)
 
@@ -76,10 +84,3 @@
   def is_plural_relationship(obj):
       return not has_data(obj) and has_links(obj)
   ```
-
-- [ ] Authentication should store a whole dict which will be merged with
-  headers
-
-- [x] Make arguments to bulk operations make more sense
-
-- [ ] Read openapi spec to prefill filters somehow

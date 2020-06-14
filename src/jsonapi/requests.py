@@ -29,7 +29,7 @@ def _jsonapi_request(method, url, *,
 
     if headers is None:
         headers = {}
-    headers.setdefault('Authorization', _jsonapi_global.auth_header)
+    headers.update(_jsonapi_global.make_auth_headers())
     if content_type is not None:
         headers.setdefault('Content-Type', content_type)
 

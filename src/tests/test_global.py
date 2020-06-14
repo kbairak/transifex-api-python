@@ -6,8 +6,9 @@ from .constants import host
 
 
 def reset_setup():
-    jsonapi.setup("test_api_key", host)
-    assert _jsonapi_global.auth_header == "Bearer test_api_key"
+    jsonapi.setup(host, "test_api_key")
+    assert (_jsonapi_global.make_auth_headers() ==
+            {'Authorization': "Bearer test_api_key"})
     assert _jsonapi_global.host == host
 
 
@@ -20,24 +21,29 @@ def test_class_registry():
 
 
 def test_setup_plaintext():
-    jsonapi.setup("another_key", "http://some.host")
-    assert _jsonapi_global.auth_header == "Bearer another_key"
+    jsonapi.setup("http://some.host", "another_key")
+    assert (_jsonapi_global.make_auth_headers() ==
+            {'Authorization': "Bearer another_key"})
     assert _jsonapi_global.host == "http://some.host"
     reset_setup()
 
 
 def test_setup_ulf():
-    jsonapi.setup(ULFAuthentication('public'), host)
-    assert _jsonapi_global.auth_header == "ULF public"
+    jsonapi.setup(host, ULFAuthentication('public'))
+    assert (_jsonapi_global.make_auth_headers() ==
+            {'Authorization': "ULF public"})
 
-    jsonapi.setup(ULFAuthentication('public', 'secret'), host)
-    assert _jsonapi_global.auth_header == "ULF public:secret"
+    jsonapi.setup(host, ULFAuthentication('public', 'secret'))
+    assert (_jsonapi_global.make_auth_headers() ==
+            {'Authorization': "ULF public:secret"})
 
     reset_setup()
 
 
 def test_setup_any_callable():
-    jsonapi.setup(lambda: "Another key2", "http://some.host2")
-    assert _jsonapi_global.auth_header == "Another key2"
+    jsonapi.setup("http://some.host2",
+                  lambda: {'Authorization': "Another key2"})
+    assert (_jsonapi_global.make_auth_headers() ==
+            {'Authorization': "Another key2"})
     assert _jsonapi_global.host == "http://some.host2"
     reset_setup()

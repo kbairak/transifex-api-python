@@ -7,11 +7,11 @@ class _JsonApiGlobal:
     def __init__(self):
         self.registry = {}  # Will map API resource types to classes
 
-    def setup(self, auth, host):
-        if isinstance(auth, str):
-            self.auth_header = BearerAuthentication(auth)()
+    def setup(self, host, auth):
+        if callable(auth):
+            self.make_auth_headers = auth
         else:
-            self.auth_header = auth()
+            self.make_auth_headers = BearerAuthentication(auth)
 
         self.host = host
 
