@@ -1,17 +1,19 @@
-import responses
 import jsonapi
+import responses
 from jsonapi.querysets import Queryset
 
 from .constants import host
 from .payloads import Payloads
 
-jsonapi.setup(host=host, auth="test_api_key")
+_api = jsonapi.JsonApi(host=host, auth="test_api_key")
 
 
+@_api.register
 class Item(jsonapi.Resource):
     TYPE = "items"
 
 
+@_api.register
 class Tag(jsonapi.Resource):
     TYPE = "tags"
 
@@ -23,7 +25,7 @@ payloads = Payloads('items')
 def test_queryset():
     responses.add(responses.GET, f"{host}/items", json={'data': payloads[1:4]})
 
-    queryset = Queryset('/items')
+    queryset = Queryset(_api, '/items')
     list(queryset)
 
     assert len(queryset) == 3
@@ -38,7 +40,7 @@ def test_queryset():
 
 
 def test_from_data():
-    queryset = Queryset.from_data({'data': payloads[1:4]})
+    queryset = Queryset.from_data(_api, {'data': payloads[1:4]})
 
     assert len(queryset) == 3
     assert isinstance(queryset[0], Item)
@@ -57,7 +59,8 @@ def test_pagination():
                   json={'data': payloads[4:7],
                         'links': {'previous': "/items?page=1"}})
 
-    first_page = Queryset.from_data({'data': payloads[1:4],
+    first_page = Queryset.from_data(_api,
+                                    {'data': payloads[1:4],
                                      'links': {'next': "/items?page=2"}})
     assert first_page.has_next()
     second_page = first_page.next()

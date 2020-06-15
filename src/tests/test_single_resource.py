@@ -1,14 +1,15 @@
 import json
 from copy import deepcopy
 
-import responses
 import jsonapi
+import responses
 
 from .constants import host
 
-jsonapi.setup(host=host, auth="test_api_key")
+_api = jsonapi.JsonApi(host=host, auth="test_api_key")
 
 
+@_api.register
 class Foo(jsonapi.Resource):
     TYPE = "foos"
 
@@ -36,23 +37,21 @@ def test_init():
 
 
 def test_new():
-    foo = jsonapi.Resource.new(type="foos", id="1",
-                               attributes={'hello': "world"})
+    foo = _api.new(type="foos", id="1", attributes={'hello': "world"})
     make_simple_assertions(foo)
-    foo = jsonapi.Resource.new({'data': SIMPLE_PAYLOAD})
+    foo = _api.new({'data': SIMPLE_PAYLOAD})
     make_simple_assertions(foo)
-    foo = jsonapi.Resource.new(SIMPLE_PAYLOAD)
+    foo = _api.new(SIMPLE_PAYLOAD)
     make_simple_assertions(foo)
 
 
 def test_as_resource():
     foo = Foo(SIMPLE_PAYLOAD)
-    assert (jsonapi.Resource.as_resource(foo).as_resource_identifier() ==
+    assert (_api.as_resource(foo).as_resource_identifier() ==
             {'type': "foos", 'id': "1"})
-    assert (jsonapi.Resource.as_resource({'data': SIMPLE_PAYLOAD}).
+    assert (_api.as_resource({'data': SIMPLE_PAYLOAD}).
             as_resource_identifier() == {'type': "foos", 'id': "1"})
-    assert (jsonapi.Resource.
-            as_resource(SIMPLE_PAYLOAD).
+    assert (_api.as_resource(SIMPLE_PAYLOAD).
             as_resource_identifier() ==
             {'type': "foos", 'id': "1"})
 
@@ -91,7 +90,7 @@ def test_get_one():
 
     make_simple_assertions(foo)
 
-    foo = jsonapi.Resource.get('1', type="foos")
+    foo = _api.get('1', type="foos")
 
     assert len(responses.calls) == 2
     call = responses.calls[0]

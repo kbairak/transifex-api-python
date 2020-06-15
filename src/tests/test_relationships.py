@@ -1,22 +1,23 @@
 import json
 from copy import deepcopy
 
-import responses
 import jsonapi
+import responses
 
 from .constants import host
 from .payloads import Payloads
 
+_api = jsonapi.JsonApi(host=host, auth="test_api_key")
 
+
+@_api.register
 class Child(jsonapi.Resource):
     TYPE = "children"
 
 
+@_api.register
 class Parent(jsonapi.Resource):
     TYPE = "parents"
-
-
-jsonapi.setup(host=host, auth="test_api_key")
 
 
 child_payloads = Payloads(

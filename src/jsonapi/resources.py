@@ -3,24 +3,10 @@ from copy import deepcopy
 
 import requests
 
-from .globals import _jsonapi_global
 from .querysets import Queryset
-from .requests import _jsonapi_request
 
 
-class _JsonApiMeta(type):
-    """ Fills up our global class registry whenever a subclass of Resource is
-        defined.
-    """
-
-    def __new__(cls, name, bases, dct):
-        klass = super().__new__(cls, name, bases, dct)
-        if dct.get('TYPE') is not None:
-            _jsonapi_global.registry[dct['TYPE']] = klass
-        return klass
-
-
-class Resource(metaclass=_JsonApiMeta):
+class Resource:
     """ Subclass like this:
 
             >>> class Foo(jsonapi.Resource):
@@ -206,7 +192,7 @@ class Resource(metaclass=_JsonApiMeta):
                              f"it's a plural relationship. Use '.add()', "
                              f"'.remove()' or '.reset()' instead.")
 
-        value = Resource.as_resource(value)
+        value = self.API.as_resource(value)
         from_null_to_not_null = self.R[key] is None and value is not None
         from_not_null_to_null = self.R[key] is not None and value is None
         data_changed = (self.R[key] is not None and
@@ -220,42 +206,13 @@ class Resource(metaclass=_JsonApiMeta):
         self.r[key] = value
 
     @classmethod
-    def new(cls, data=None, *, type=None, **kwargs):
-        """ Initialize an API resource type when you don't know the type,
-            provided that a subclass with that type was defined.
-
-            Requires a 'type' argument or a 'data' with a 'type' field to
-            function properly.
-
-                >>> class Parent(jsonapi.Resource):
-                ...     TYPE = "parents"
-
-                >>> parent = jsonapi.Resource.new(type="parents", id="1")
-                >>> # 'parent' is now of type 'Parent'
-                >>> parent.reload()  # To fetch the rest of the fields
-
-                >>> response = requests.get('http://api.com/parents/1')
-                >>> parent = jsonapi.Resource.new(response.json())
-                >>> parent = jsonapi.Resource.new(response.json()['data'])
-                >>> parent = jsonapi.Resource.new(**response.json()['data'])
-        """
-
-        if data is not None:
-            if 'data' in data:
-                data = data['data']
-            return cls.new(**data)
-        else:
-            klass = _jsonapi_global.registry.get(type, Resource)
-            return klass(**kwargs)
-
-    @classmethod
     def as_resource(cls, data):
         """ Little convenience function when we don't know if we are dealing
             with a Resource instance or a dict describing a relationship.
         """
 
         try:
-            return cls.new(data)
+            return cls(data)
         except Exception:
             return data
 
@@ -286,7 +243,7 @@ class Resource(metaclass=_JsonApiMeta):
 
     def __getattr__(self, attr):
         if attr in ('a', 'attributes', 'R', 'relationships', 'r', 'related',
-                    'id', 'links', 'redirect'):
+                    'id', 'links', 'redirect', 'API'):
             return super().__getattribute__(attr)
         elif attr in self.a:
             return self.a[attr]
@@ -297,7 +254,7 @@ class Resource(metaclass=_JsonApiMeta):
 
     def __setattr__(self, attr, value):
         if attr in ('id', 'attributes', 'relationships', 'related', 'links',
-                    'redirect'):
+                    'redirect', 'API'):
             super().__setattr__(attr, value)
         elif attr in self.a:
             self.a[attr] = value
@@ -317,7 +274,7 @@ class Resource(metaclass=_JsonApiMeta):
         params = None
         if include is not None:
             params = {'include': ','.join(include)}
-        response_body = _jsonapi_request('get', url, params=params)
+        response_body = self.API.request('get', url, params=params)
         if (isinstance(response_body, requests.Response) and
                 response_body.status_code == 303):
             self._overwrite(redirect=response_body.headers['Location'])
@@ -327,22 +284,7 @@ class Resource(metaclass=_JsonApiMeta):
 
     @classmethod
     def get(cls, id, *, type=None, include=None):
-        """ Usage:
-
-                >>> foo = Foo.get('foo_id')
-                >>> # or
-                >>> Foo.get('foo_id', include=['parent'])
-
-            Works with 'type' attribute in case the class name is unknown (but
-            registered):
-
-                >>> foo = jsonapi.Resource.get(1, type="users")
-        """
-
-        if type is not None and cls.TYPE is None:
-            instance = cls.new(id=id, type=type)
-        else:
-            instance = cls(id=id)
+        instance = cls(id=id)
         instance.reload(include=include)
         return instance
 
@@ -395,7 +337,7 @@ class Resource(metaclass=_JsonApiMeta):
                     get('links', {}).\
                     get('related',
                         f"/{self.TYPE}/{self.id}/{relationship_name}")
-                self.r[relationship_name] = Queryset(url)
+                self.r[relationship_name] = Queryset(self.API, url)
 
         if len(relationship_names) == 1:
             # This way you can do `project.fetch('languages').filter(...)`
@@ -403,7 +345,7 @@ class Resource(metaclass=_JsonApiMeta):
 
     @classmethod
     def list(cls):
-        return Queryset(f"/{cls.TYPE}")
+        return Queryset(cls.API, f"/{cls.TYPE}")
 
     def _queryset_method(method):
         def _method(cls, *args, **kwargs):
@@ -460,7 +402,7 @@ class Resource(metaclass=_JsonApiMeta):
                 new_id = None
             if current_id != new_id:
                 if new_id is not None:
-                    related[relationship_name] = Resource.new(
+                    related[relationship_name] = self.API.new(
                         data['relationships'][relationship_name]
                     )
                 else:
@@ -471,14 +413,14 @@ class Resource(metaclass=_JsonApiMeta):
     def _save_existing(self, *fields):
         payload = self.as_resource_identifier()
         payload.update(self._generate_data_for_saving(*fields))
-        return _jsonapi_request('patch', self._get_url(),
+        return self.API.request('patch', self._get_url(),
                                 json={'data': payload})
 
     def _save_new(self, *fields):
         url = f"/{self.TYPE}"
         payload = {'type': self.TYPE}
         payload.update(self._generate_data_for_saving(*fields))
-        return _jsonapi_request('post', url, json={'data': payload})
+        return self.API.request('post', url, json={'data': payload})
 
     def _generate_data_for_saving(self, *fields):
         result = {}
@@ -499,15 +441,7 @@ class Resource(metaclass=_JsonApiMeta):
 
     @classmethod
     def create(cls, *args, **kwargs):
-        """ Usage:
-
-            >>> foo = Foo.create(attributes={...}, relationships={...})
-        """
-
-        if cls.TYPE is not None:
-            instance = cls(*args, **kwargs)
-        else:
-            instance = cls.new(*args, **kwargs)
+        instance = cls(*args, **kwargs)
         if instance.id is not None:
             raise ValueError("'id' supplied as part of a new instance")
         instance.save()
@@ -522,17 +456,17 @@ class Resource(metaclass=_JsonApiMeta):
 
         if type is None and cls.TYPE is not None:
             type = cls.TYPE
-        response_body = _jsonapi_request('post', f"/{type}", **kwargs)
-        return cls.new(response_body)
+        response_body = cls.API.request('post', f"/{type}", **kwargs)
+        return cls.API.new(response_body)
 
     def follow(self):
         if self.redirect is None:
             raise ValueError("Cannot follow a non-redirect response")
-        response_body = _jsonapi_request('get', self.redirect)
+        response_body = self.API.request('get', self.redirect)
         if isinstance(response_body['data'], collections.abc.Sequence):
-            return Queryset.from_data(response_body)
+            return Queryset.from_data(self.API, response_body)
         elif isinstance(response_body['data'], collections.abc.Mapping):
-            return Resource.new(response_body)
+            return self.API.new(response_body)
         else:  # Unreachable code
             raise ValueError("Unknown format while following redirect")
 
@@ -542,7 +476,7 @@ class Resource(metaclass=_JsonApiMeta):
                 >>> foo.delete()
         """
 
-        _jsonapi_request('delete', self._get_url())
+        self.API.request('delete', self._get_url())
         self.id = None
 
     # Editing relationshps
@@ -576,7 +510,7 @@ class Resource(metaclass=_JsonApiMeta):
                 >>> child.save('parent')
         """
 
-        value = Resource.as_resource(value)
+        value = self.API.as_resource(value)
         self._edit_relationship('patch', field, value.as_resource_identifier())
         self.R[field]['data'] = value.as_resource_identifier()
         if self.r[field] != value:
@@ -660,12 +594,12 @@ class Resource(metaclass=_JsonApiMeta):
         url = self.R[field].\
             get('links', {}).\
             get('self', f"/{self.TYPE}/{self.id}/relationships/{field}")
-        _jsonapi_request(method, url, json={'data': value})
+        self.API.request(method, url, json={'data': value})
 
     def _edit_plural_relationship(self, method, field, values):
         payload = []
         for item in values:
-            payload.append(Resource.as_resource(item).as_resource_identifier())
+            payload.append(self.API.as_resource(item).as_resource_identifier())
         self._edit_relationship(method, field, payload)
 
     # Bulk actions
@@ -695,13 +629,13 @@ class Resource(metaclass=_JsonApiMeta):
         payload = []
 
         for item in items:
-            item = Resource.as_resource(item)
+            item = cls.as_resource(item)
             if not isinstance(item, Resource):
                 item = cls(id=item)
             payload.append(item.as_resource_identifier())
 
-        _jsonapi_request('delete', f"/{cls.TYPE}", json={'data': payload},
-                         bulk=True)
+        cls.API.request('delete', f"/{cls.TYPE}", json={'data': payload},
+                        bulk=True)
 
     @classmethod
     def bulk_create(cls, items):
@@ -737,7 +671,7 @@ class Resource(metaclass=_JsonApiMeta):
                 attributes, relationships = item
                 item = cls(attributes=attributes, relationships=relationships)
             else:
-                item = Resource.as_resource(item)
+                item = cls.as_resource(item)
                 if not isinstance(item, Resource):
                     item = cls(attributes=item)
 
@@ -750,9 +684,9 @@ class Resource(metaclass=_JsonApiMeta):
             if item.R:
                 payload[-1]['relationships'] = item.R
 
-        response_body = _jsonapi_request('post', f"/{cls.TYPE}",
-                                         json={'data': payload}, bulk=True)
-        return Queryset.from_data(response_body)
+        response_body = cls.API.request('post', f"/{cls.TYPE}",
+                                        json={'data': payload}, bulk=True)
+        return Queryset.from_data(cls.API, response_body)
 
     @classmethod
     def bulk_update(cls, items, fields=None):
@@ -795,7 +729,7 @@ class Resource(metaclass=_JsonApiMeta):
                            attributes=attributes,
                            relationships=relationships)
             else:
-                item = Resource.as_resource(item)
+                item = cls.as_resource(item)
                 if not isinstance(item, Resource):
                     item = cls(id=item)
 
@@ -819,17 +753,17 @@ class Resource(metaclass=_JsonApiMeta):
                 payload[-1]['attributes'] = attributes
             if relationships:
                 payload[-1]['relationships'] = {
-                    key: Resource.as_resource(value).as_relationship()
+                    key: cls.API.as_resource(value).as_relationship()
                     for key, value in relationships.items()
                 }
 
-        response_body = _jsonapi_request('patch', f"/{cls.TYPE}",
-                                         json={'data': payload}, bulk=True)
-        return Queryset.from_data(response_body)
+        response_body = cls.API.request('patch', f"/{cls.TYPE}",
+                                        json={'data': payload}, bulk=True)
+        return Queryset.from_data(cls.API, response_body)
 
     # Utils
     def __eq__(self, other):
-        other = Resource.as_resource(other)
+        other = self.API.as_resource(other)
         return self.as_resource_identifier() == other.as_resource_identifier()
 
     def __repr__(self):

@@ -1,14 +1,15 @@
 import json
 
-import responses
 import jsonapi
+import responses
 
 from .constants import host
 from .payloads import Payloads
 
-jsonapi.setup(host=host, auth="test_api_key")
+_api = jsonapi.JsonApi(host=host, auth="test_api_key")
 
 
+@_api.register
 class BulkItem(jsonapi.Resource):
     TYPE = "bulk_items"
 

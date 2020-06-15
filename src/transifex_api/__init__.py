@@ -1,27 +1,31 @@
 import time
 
-from jsonapi import setup as jsonapi_setup, Resource as JsonApiResource
+import jsonapi
+
+_api = jsonapi.JsonApi(host="https://rest.api.transifex.com")
 
 
 def setup(auth, host=None):
-    if host is None:
-        host = "https://rest.api.transifex.com"
-    jsonapi_setup(host=host, auth=auth)
+    _api.setup(host, auth)
 
 
-class Organization(JsonApiResource):
+@_api.register
+class Organization(jsonapi.Resource):
     TYPE = "organizations"
 
 
-class Project(JsonApiResource):
+@_api.register
+class Project(jsonapi.Resource):
     TYPE = "projects"
 
 
-class Language(JsonApiResource):
+@_api.register
+class Language(jsonapi.Resource):
     TYPE = "languages"
 
 
-class Resource(JsonApiResource):
+@_api.register
+class Resource(jsonapi.Resource):
     TYPE = "resources"
 
     def purge(self):
@@ -38,16 +42,19 @@ class Resource(JsonApiResource):
         #     ResourceString.bulk_delete(page)
 
 
-class ResourceString(JsonApiResource):
+@_api.register
+class ResourceString(jsonapi.Resource):
     TYPE = "resource_strings"
 
 
-class ResourceTranslation(JsonApiResource):
+@_api.register
+class ResourceTranslation(jsonapi.Resource):
     TYPE = "resource_translations"
     EDITABLE = ["strings", 'reviewed', "proofread"]
 
 
-class ResourceStringsAsyncUpload(JsonApiResource):
+@_api.register
+class ResourceStringsAsyncUpload(jsonapi.Resource):
     TYPE = "resource_strings_async_uploads"
 
     @classmethod
@@ -71,3 +78,8 @@ class ResourceStringsAsyncUpload(JsonApiResource):
                 return upload.follow()
             time.sleep(interval)
             upload.reload()
+
+
+@_api.register
+class User(jsonapi.Resource):
+    TYPE = "users"

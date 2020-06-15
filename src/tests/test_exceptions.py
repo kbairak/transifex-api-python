@@ -4,7 +4,10 @@ from jsonapi.exceptions import JsonApiException
 
 from .constants import host
 
+_api = jsonapi.JsonApi(host=host, auth="test_api_key")
 
+
+@_api.register
 class Foo(jsonapi.Resource):
     TYPE = "foos"
 

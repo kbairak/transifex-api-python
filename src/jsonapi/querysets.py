@@ -1,11 +1,9 @@
 import collections
 import urllib
 
-from .requests import _jsonapi_request
-
 
 class Queryset(collections.abc.Sequence):
-    def __init__(self, url, params=None):
+    def __init__(self, API, url, params=None):
         if params is None:
             params = {}
 
@@ -18,6 +16,7 @@ class Queryset(collections.abc.Sequence):
         url = path
         params.update(query_params)
 
+        self.API = API
         self._url = url
         self._params = params
 
@@ -26,8 +25,8 @@ class Queryset(collections.abc.Sequence):
         self._previous_url = None
 
     @classmethod
-    def from_data(cls, response_body):
-        result = cls('')
+    def from_data(cls, API, response_body):
+        result = cls(API, '')
         result._evaluate(response_body)
         return result
 
@@ -48,12 +47,11 @@ class Queryset(collections.abc.Sequence):
         return self._previous_url
 
     def _evaluate(self, response_body=None):
-        from .resources import Resource
         if self._data is not None:
             return
 
         if response_body is None:
-            response_body = _jsonapi_request('get', self._url,
+            response_body = self.API.request('get', self._url,
                                              params=self._params)
         included = {}
         if 'included' in response_body:
@@ -69,8 +67,8 @@ class Queryset(collections.abc.Sequence):
                 key = (relationship['data']['type'],
                        relationship['data']['id'])
                 if key in included:
-                    related[name] = Resource.new(included[key])
-            self._data.append(Resource.new(related=related, **item))
+                    related[name] = self.API.new(included[key])
+            self._data.append(self.API.new(related=related, **item))
 
         self._next_url = response_body.get('links', {}).get('next')
         self._previous_url = response_body.get('links', {}).get('previous')
@@ -90,13 +88,13 @@ class Queryset(collections.abc.Sequence):
         return bool(self.next_url)
 
     def next(self):
-        return self.__class__(self.next_url, self._params)
+        return self.__class__(self.API, self.next_url, self._params)
 
     def has_previous(self):
         return bool(self.previous_url)
 
     def previous(self):
-        return self.__class__(self.previous_url, self._params)
+        return self.__class__(self.API, self.previous_url, self._params)
 
     def all_pages(self):
         if self.data:
@@ -123,7 +121,7 @@ class Queryset(collections.abc.Sequence):
 
             params[key] = value
 
-        return self.__class__(self._url, params)
+        return self.__class__(self.API, self._url, params)
 
     def page(self, *args, **kwargs):
         params = dict(self._params)
@@ -137,13 +135,13 @@ class Queryset(collections.abc.Sequence):
             raise ValueError("Either one positional or keyword arguments "
                              "accepted for pagination")
 
-        return self.__class__(self._url, params)
+        return self.__class__(self.API, self._url, params)
 
     def _param_method(param_name):
         def _method(self, *fields):
             params = dict(self._params)
             params[param_name] = ','.join(fields)
-            return self.__class__(self._url, params)
+            return self.__class__(self.API, self._url, params)
         return _method
 
     include = _param_method('include')
@@ -153,4 +151,4 @@ class Queryset(collections.abc.Sequence):
     def extra(self, **kwargs):
         params = dict(self._params)
         params.update(kwargs)
-        return self.__class__(self._url, params)
+        return self.__class__(self.API, self._url, params)

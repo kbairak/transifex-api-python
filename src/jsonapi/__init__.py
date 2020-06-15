@@ -1,2 +1,2 @@
-from .globals import setup  # noqa
+from .apis import JsonApi  # noqa
 from .resources import Resource  # noqa
