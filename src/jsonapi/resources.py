@@ -22,61 +22,7 @@ class Resource:
     # Creation
     def __init__(self, data=None, *, id=None, attributes=None,
                  relationships=None, links=None, related=None, type=None):
-        """ Initialize an API resource instance when you know the type.
-
-            You can either provide:
-
-            - Specific 'id', 'attributes', 'relationships', 'links' and/or
-              'related'
-
-                >>> user = User(id="1")
-                >>> user.reload()  # Will use 'type' and 'id' to fetch from API
-
-                >>> parent = ...
-                >>> user = User(attributes={'username': "Bill"},
-                ...             relationships={'parent': parent})
-                >>> user.save()  # Will save and receive an 'id' from the API
-
-            - The json body of a response
-
-                >>> response = requests.get("http://api.com/users/1")
-                >>> user = User(response.json())
-                >>> user = User(**response.json()['data'])
-
-            - Another API resource instance's relationship or relationship data
-
-                >>> user = ...
-
-                >>> # {'data': {'type': "parents", 'id': 1}}
-                >>> parent = Parent(user.R['parent'])
-
-                >>> # {'type': "parents", 'id': 1}
-                >>> parent = Parent(user.R['parent']['data'])
-
-                >>> parent.reload()  # To fetch the rest of the fields
-
-            For relationships you can use:
-
-            - Another resource object:
-
-                >>> User(relationships={'parent': Parent('id')})
-                >>> User(relationships={'parent': Parent.get('1')})
-
-            - A relationship or resource idntifier:
-
-                >>> User(relationships={'parent': {'type': "parents",
-                ...                                'id': "1"}})
-                >>> User(relationships={'parent': {'data': {'type': "parents",
-                ...                                         'id': "1"},
-                ...                                'links': {'related': "...",
-                ...                                          'links': "..."}}})
-                >>> User(relationships={'parent': {'links': {'related': "...",
-                ...                                          'links': "..."}}})
-
-            - None:
-
-                >>> User(relationships={'parent': None})
-        """
+        """ Initialize an API resource instance when you know the type. """
 
         if type is not None and type != self.TYPE:
             raise ValueError("Invalid type")
@@ -93,14 +39,13 @@ class Resource:
             self._overwrite(**data)
         else:
             self._overwrite(id=id, attributes=attributes,
-                            relationships=relationships, links=links,
-                            related=related)
+                            relationships=relationships, links=links)
 
     def _overwrite(self, *,
                    # Copied from response to the instance
                    id=None, attributes=None, relationships=None, links=None,
                    # Used to overwrite 'related'
-                   included=None, related=None,
+                   included=None,
                    # Used in case of redirect responses
                    redirect=None,
                    # Ignored
@@ -124,13 +69,15 @@ class Resource:
 
         self.redirect = redirect
 
+        # Relationships
         self.relationships, self.related = {}, {}
-        if relationships is not None:
-            for key, value in deepcopy(relationships).items():
-                self._set_relationship(key, value)
-                if self.R[key] is None or 'data' in self.R[key]:
-                    # Singular relationship
-                    self.set_related(key, value)
+        if relationships is None:
+            relationships = {}
+        for key, value in relationships.items():
+            self._set_relationship(key, value)
+            if self.R[key] is None or 'data' in self.R[key]:
+                # Singular relationship
+                self.set_related(key, value)
 
         if included is not None:
             included = {(item['type'], item['id']): item for item in included}
@@ -141,10 +88,6 @@ class Resource:
                        relationship['data']['id'])
                 if key in included:
                     self.set_related(relationship_name, included[key])
-
-        if related is not None:
-            for key, value in related.items():
-                self.set_related(key, value)
 
     def _set_relationship(self, key, value):
         """ Set 'value' as 'key' relationship. For value we accept:
@@ -167,7 +110,8 @@ class Resource:
             if value is None or 'data' in value or 'links' in value:
                 self.R[key] = value
             else:
-                raise ValueError("Invalid value '{value}' for relationship")
+                raise ValueError(f"Invalid type '{value}' for relationship "
+                                 f"'{key}'")
 
     def set_related(self, key, value):
         """ Set 'value' as 'key' relationship's value. Works only with singular
@@ -284,6 +228,8 @@ class Resource:
 
     @classmethod
     def get(cls, id, *, type=None, include=None):
+        """ Get a resource object by its ID. """
+
         instance = cls(id=id)
         instance.reload(include=include)
         return instance
@@ -306,6 +252,16 @@ class Resource:
                 >>> # All pages
                 >>> print([child.a['name']
                 ...        for child in foo.r['children'].all()])
+
+            If only one positional argument is supplied, it will return the
+            related object or queryset:
+
+                >>> print(child.fetch('parent').name)
+
+                Equivalent to:
+
+                >>> child.fetch('parent')
+                >>> print(child.parent.name)
         """
 
         for relationship_name in relationship_names:
@@ -402,13 +358,18 @@ class Resource:
                 new_id = None
             if current_id != new_id:
                 if new_id is not None:
+                    # Relationship changed, reset
                     related[relationship_name] = self.API.new(
                         data['relationships'][relationship_name]
                     )
                 else:
+                    # Relationship removed
                     del related[relationship_name]
 
-        self._overwrite(related=related, **data)
+        relationships = data.pop('relationships', {})
+        relationships.update(related)
+
+        self._overwrite(relationships=relationships, **data)
 
     def _save_existing(self, *fields):
         payload = self.as_resource_identifier()
@@ -636,6 +597,7 @@ class Resource:
 
         cls.API.request('delete', f"/{cls.TYPE}", json={'data': payload},
                         bulk=True)
+        return len(payload)
 
     @classmethod
     def bulk_create(cls, items):
@@ -784,9 +746,11 @@ class Resource:
 
     def __copy__(self):
         # Will eventually call `_overwrite` so `deepcopy` will be used
+        relationships = deepcopy(self.R)
+        relationships.update(self.r)
         return self.__class__(id=self.id, attributes=self.a,
-                              relationships=self.r, links=self.links,
-                              related=self.r)
+                              relationships=relationships, links=self.links,
+                              redirect=self.redirect)
 
     def as_resource_identifier(self):
         return {'type': self.TYPE, 'id': self.id}

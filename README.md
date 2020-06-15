@@ -1,29 +1,30 @@
-# transifex-api-python
-
 A python SDK for the [Transifex API (v3)](https://transifex.github.io/openapi/)
 
 ## Table of contents
 
 <!--ts-->
-* [Introduction](#introduction)
-* [Transifex-flavored {json:api}](#transifex-flavored-jsonapi)
-* [Installation](#installation)
-* [jsonapi usage](#jsonapi-usage)
-   * [Setting up](#setting-up)
-   * [Getting a single resource object from the API](#getting-a-single-resource-object-from-the-api)
-   * [Fetching relationships](#fetching-relationships)
-   * [Shortcuts](#shortcuts)
-   * [Getting many resource objects at the same time](#getting-many-resource-objects-at-the-same-time)
-   * [Prefetching relationships with include](#prefetching-relationships-with-include)
-   * [Saving changes, creating new resources](#saving-changes-creating-new-resources)
-   * [Deleting](#deleting)
-   * [Editing relationships](#editing-relationships)
-   * [Bulk operations](#bulk-operations)
-   * [Form uploads, redirects](#form-uploads-redirects)
-* [transifex_api usage](#transifex_api-usage)
-* [Tests](#tests)
+   * [Introduction](#introduction)
+   * [Transifex-flavored {json:api}](#transifex-flavored-jsonapi)
+   * [Installation](#installation)
+   * [`jsonapi` usage](#jsonapi-usage)
+      * [Setting up](#setting-up)
+         * [Registering Resource subclasses](#registering-resource-subclasses)
+         * [Customizing setup configuration](#customizing-setup-configuration)
+         * [Authentication](#authentication)
+      * [Getting a single resource object from the API](#getting-a-single-resource-object-from-the-api)
+      * [Fetching relationships](#fetching-relationships)
+      * [Shortcuts](#shortcuts)
+      * [Getting many resource objects at the same time](#getting-many-resource-objects-at-the-same-time)
+      * [Prefetching relationships with include](#prefetching-relationships-with-include)
+      * [Saving changes, creating new resources](#saving-changes-creating-new-resources)
+      * [Deleting](#deleting)
+      * [Editing relationships](#editing-relationships)
+      * [Bulk operations](#bulk-operations)
+      * [Form uploads, redirects](#form-uploads-redirects)
+   * [`transifex_api` usage](#transifex_api-usage)
+   * [Tests](#tests)
 
-<!-- Added by: kbairak, at: Mon 25 May 2020 11:40:31 PM EEST -->
+<!-- Added by: kbairak, at: Mon 15 Jun 2020 05:18:20 PM EEST -->
 
 <!--te-->
 
@@ -115,44 +116,75 @@ pip install -e .  # If you want to work on the SDK's source code
 
 ### Setting up
 
-Before using `jsonapi`, you need to setup the connection with the API server.
-This is done with:
+In order to use `jsonapi`, you need to create a `JsonApi` object that
+represents a connection with the API server:
 
 ```python
 import jsonapi
-
-jsonapi.setup("<API_TOKEN>", "https://api.someservice.com")
+_api = jsonapi.JsonApi(host="https://api.someservice.com", auth="<API_TOKEN>")
 ```
 
-The first argument is either:
+#### Registering Resource subclasses
 
-1. A string, in which case the value of the `Authorization` header sent with
-   every request will be `Bearer <API_TOKEN>`, or
-
-2. Any callable object in which case its return value will be merged with the
-   headers that will be sent
-
-   For an example of an authentication method that sends different
-   authorization headers for every request, check the (experimental)
-   [JWT authentication class](src/jsonapi/auth.py#L24)
-
-Creating a class for an API resource which follows the {json:api} and the above
-guidelines is as simple as:
+Resource subclasses must be registered to that API instance with:
 
 ```python
-import jsonapi
-
+@_api.register
 class Parent(jsonapi.Resource):
     TYPE = "parents"
 
+@_api.register
 class Child(jsonapi.Resource):
     TYPE = "children"
 ```
 
-`jsonapi` maintains a global registry which maps `TYPE` strings to Resource
-subclasses, so make sure you have imported all class definitions you intend to
-use in order for `jsonapi` to be able to map relationships and included data to
-the relevant classes.
+This is enough to get you started since the library will be able to provide you
+with a lot of functionality based on the structure of the responses you get
+from the server. Make sure you define and register Resource subclasses for
+every type you intend to encounter, because `jsonapi` will use the API
+instance's registry to resolve the appropriate subclass the items included in
+the API's responses.
+
+#### Customizing setup configuration
+
+The arguments to `JsonApi` are optional. You can add or edit them later using
+the `.setup` method (which accepts the same arguments). This way, you can
+implement an interface to a server as a library and offer the option to users
+to set their authentication method and/or host:
+
+```python
+# src/transifex_api/__init__.py
+
+import jsonapi
+
+_api = jsonapi.JsonApi(host="https://rest.api.transifex.com")
+
+@_api.register
+class Organization(jsonapi.Resource):
+    TYPE = "organizations"
+
+def setup(auth):
+    _api.setup(auth=auth)
+```
+
+```python
+# app.py
+
+import transifex_api
+
+transifex_api.setup("<API_TOKEN>")
+organization = transifex_api.Organization.get("1")
+...
+```
+
+#### Authentication
+
+The `auth` argument to `JsonApi` or `setup` can either be:
+
+1. A string, in which case all requests to the API server will include the
+   `Authorization: Bearer <API_TOKEN>` header
+2. A callable, in which case the return value is expected to be a dictionary
+   which will be merged with the headers of all requests to the API server
 
 ### Getting a single resource object from the API
 

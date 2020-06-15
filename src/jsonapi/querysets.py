@@ -68,7 +68,10 @@ class Queryset(collections.abc.Sequence):
                        relationship['data']['id'])
                 if key in included:
                     related[name] = self.API.new(included[key])
-            self._data.append(self.API.new(related=related, **item))
+            relationships = item.pop('relationships', {})
+            relationships.update(related)
+            self._data.append(self.API.new(relationships=relationships,
+                                           **item))
 
         self._next_url = response_body.get('links', {}).get('next')
         self._previous_url = response_body.get('links', {}).get('previous')

@@ -7,6 +7,31 @@ from .exceptions import JsonApiException
 
 
 class JsonApi:
+    """ Inteface for a new {json:api} API.
+
+        - host: The URL of the API
+        - auth: The authentication method. Can either be:
+
+          1. A callable, whose return value should be a dictionary which will
+             be merged with the headers of all HTTP request sent to the API
+          2. A string, in which case the 'Authorization' header will be
+             `Bearer <auth>`
+
+            >>> _api = jsonapi.JsonApi(host=..., auth=...)
+
+        The arguments are optional and can be edited later with `.setup()`
+
+            >>> _api = jsonapi.JsonApi()
+            >>> _api.setup(host=..., auth=...)
+
+        All Resource classes that use this API should be registered to this API
+        instance:
+
+            >>> @_api.register
+            ... class Foo(jsonapi.Resource):
+            ...     TYPE = "foos"
+    """
+
     def __init__(self, host=None, auth=None):
         self.registry = {}
         self.setup(host, auth)
@@ -73,6 +98,20 @@ class JsonApi:
             return response
 
     def new(self, data=None, *, type=None, **kwargs):
+        """ Return a new resource instance, using the appropriate Resource
+            subclass, provided that it has been registered with this API
+            instance.
+
+                >>> _api = jsonapi.JsonApi(...)
+                >>> @_api.register
+                ... class Foo(jsonapi.Resource):
+                ...     TYPE = "foos"
+                >>> obj = _api.new(type="foos", ...)
+
+                >>> isinstance(obj, Foo)
+                <<< True
+        """
+
         if data is not None:
             if 'data' in data:
                 data = data['data']
@@ -82,19 +121,31 @@ class JsonApi:
             return klass(**kwargs)
 
     def as_resource(self, data):
+        """ Little convenience function when we don't know if we are dealing
+            with a Resource instance or a dict describing a relationship. Will
+            use the appropriate Resource subclass.
+        """
+
         try:
             return self.new(data)
         except Exception:
             return data
 
     def get(self, id, type, include=None):
+        """ Get a resource object by its ID and type. Will use the appropriate
+            Resource subclass, provided it has been registered with this API
+            instance.
+
+                >>> _api = jsonapi.JsonApi(...)
+                >>> @_api.register
+                ... class Foo(jsonapi.Resource):
+                ...     TYPE = "foos"
+                >>> obj = _api.get(id="1", type="foos")
+
+                >>> isinstance(obj, Foo)
+                <<< True
+        """
+
         instance = self.new(type=type, id=id)
         instance.reload(include=include)
-        return instance
-
-    def create(self, *args, **kwargs):
-        instance = self.new(*args, **kwargs)
-        if instance.id is not None:
-            raise ValueError("'id' supplied as part of a new instance")
-        instance.save()
         return instance

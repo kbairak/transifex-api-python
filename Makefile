@@ -1,8 +1,8 @@
-tests:
+test:
 	pytest --cov=. --cov-report=term-missing
 
-debugtests:
+debugtest:
 	pytest -s
 
-watchtests:
+watchtest:
 	pytest-watch

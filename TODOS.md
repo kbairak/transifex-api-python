@@ -7,6 +7,8 @@
 
 - [x] Make arguments to bulk operations make more sense
 
+- [ ] Increase test coverage
+
 - [ ] Read openapi spec to prefill filters somehow
 
 - [ ] Standardise how the code figures out the nature of JSON objects (whether
