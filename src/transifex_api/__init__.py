@@ -30,16 +30,12 @@ class Resource(jsonapi.Resource):
 
     def purge(self):
         count = 0
+        # Instead of filter, if Resource had a plural relationship to
+        # ResourceString, we could do `self.fetch('resource_strings')`
         for page in list(ResourceString.filter(resource=self).all_pages()):
             count += len(page)
             ResourceString.bulk_delete(page)
         return count
-
-        # If there was a 'resource_strings' plural relationship on Resource, we
-        # could do:
-        # self.fetch('resource_strings')
-        # for page in list(self.resource_strings.all_pages()):
-        #     ResourceString.bulk_delete(page)
 
 
 @_api.register

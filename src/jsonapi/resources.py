@@ -21,7 +21,7 @@ class Resource:
 
     # Creation
     def __init__(self, data=None, *, id=None, attributes=None,
-                 relationships=None, links=None, related=None, type=None):
+                 relationships=None, links=None, type=None):
         """ Initialize an API resource instance when you know the type. """
 
         if type is not None and type != self.TYPE:
@@ -269,6 +269,7 @@ class Resource:
                 raise ValueError(f"{repr(self)} doesn't have relationship "
                                  f"'{relationship_name}'")
 
+        for relationship_name in relationship_names:
             relationship = self.R[relationship_name]
 
             if relationship is None:
