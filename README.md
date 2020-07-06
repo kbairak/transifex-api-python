@@ -257,7 +257,7 @@ In order to fetch related data, you need to call `.fetch()` with the names of
 the relationships you want to fetch:
 
 ```python
-child.fetch('parent')  # Now `related['parents']` has all the information
+child.fetch('parent')  # Now `related['parent']` has all the information
 (child.related['parent'].id,
  child.related['parent'].attributes,
  child.related['parent'].relationships)
@@ -562,6 +562,17 @@ without having to fetch the relationship:
 ```python
 new_child = Child.create(attrbutes={'name': "Achilles"},
                          relationships={'parent': old_child.parent})
+```
+
+Because setting values right before saving is a common use-case, `.save()` also
+accepts keyword arguments. These will be set on the resource object, right
+before the actual saving:
+
+```python
+child.save(name="Hercules")
+# is equivalent to
+child.name = "Hercules"
+child.save('name')
 ```
 
 ### Deleting

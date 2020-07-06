@@ -117,6 +117,14 @@ def test_save_existing():
     assert (call.request.body.decode('utf8') ==
             json.dumps({'data': new_payload}))
 
+    foo.hello = "something else"
+    foo.save(hello="WORLD")
+
+    assert len(responses.calls) == 2
+    call = responses.calls[1]
+    assert (call.request.body.decode('utf8') ==
+            json.dumps({'data': new_payload}))
+
 
 @responses.activate
 def test_save_new():

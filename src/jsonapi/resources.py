@@ -334,7 +334,7 @@ class Resource:
     all = _queryset_method('all')
 
     # Editing
-    def save(self, *fields):
+    def save(self, *fields, **kwargs):
         """ For new instances (that have `.id == None`), everything will be
             saved and 'id' and other server-generated fields will be set.
 
@@ -352,6 +352,12 @@ class Resource:
                 >>> # or
                 >>> foo = foo.save('name', ...)
         """
+
+        fields = set(fields)
+
+        for key, value in kwargs.items():
+            setattr(self, key, value)
+            fields.add(key)
 
         if self.id is not None:
             response_body = self._save_existing(*fields)
