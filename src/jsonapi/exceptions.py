@@ -38,6 +38,9 @@ class JsonApiException(Exception):
     status_code = property(lambda self: self.args[0])
     errors = property(lambda self: self.args[1])
 
+    def to_dict(self):
+        return {'errors': [error.to_dict() for error in self.errors]}
+
     # Shortcuts that make sense if len(errors) == 1
     def first_error_property(field):
         def _get(self):
@@ -61,3 +64,10 @@ class JsonApiError:
 
     def __repr__(self):  # pragma: no cover
         return f"<JsonApiError: {self.code} - {self.detail}>"
+
+    def to_dict(self):
+        result = {'status': self.status, 'code': self.code,
+                  'title': self.title, 'detail': self.detail}
+        if self.source is not None:
+            result['source'] = self.source
+        return result

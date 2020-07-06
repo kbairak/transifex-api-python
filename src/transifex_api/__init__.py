@@ -15,6 +15,11 @@ class Organization(jsonapi.Resource):
 
 
 @_api.register
+class Team(jsonapi.Resource):
+    TYPE = "teams"
+
+
+@_api.register
 class Project(jsonapi.Resource):
     TYPE = "projects"
 

@@ -160,6 +160,21 @@ class Resource:
         except Exception:
             return data
 
+    def to_dict(self):
+        if self.redirect:
+            return self.redirect
+
+        result = {'type': self.TYPE}
+        if self.id:
+            result['id'] = self.id
+        if self.attributes:
+            result['attributes'] = self.attributes
+        if self.relationships:
+            result['relationships'] = self.relationships
+        if self.links:
+            result['links'] = self.links
+        return result
+
     # Shortcuts
     @property
     def a(self):
@@ -559,9 +574,8 @@ class Resource:
         self.API.request(method, url, json={'data': value})
 
     def _edit_plural_relationship(self, method, field, values):
-        payload = []
-        for item in values:
-            payload.append(self.API.as_resource(item).as_resource_identifier())
+        payload = [self.API.as_resource(item).as_resource_identifier()
+                   for item in values]
         self._edit_relationship(method, field, payload)
 
     # Bulk actions
