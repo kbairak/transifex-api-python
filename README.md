@@ -51,10 +51,10 @@ and they consist of the following:
       ```json
       {"type": "children",
        "id": "...",
-       "data": {"...": "..."},
+       "attributes": {"...": "..."},
        "relationships": {"parent": null,
                          "...": {"...": "..."}},
-       "data": {"...": "..."}}
+       "links": {"...": "..."}}
       ```
 
    2. A **singular-non-null** relationship which will be represented by an
@@ -63,11 +63,11 @@ and they consist of the following:
       ```json
       {"type": "children",
        "id": "...",
-       "data": {"...": "..."},
+       "attributes": {"...": "..."},
        "relationships": {"parent": {"data": {"type": "parents", "id": "..."},
                                     "links": {"self": "...", "related": "..."}},
                          "...": {"...": "..."}},
-       "data": {"...": "..."}}
+       "links": {"...": "..."}}
       ```
 
    3. A **plural** relationship which will be represented by an object with a
@@ -76,10 +76,10 @@ and they consist of the following:
       ```json
       {"type": "parents",
        "id": "...",
-       "data": {"...": "..."},
+       "attributes": {"...": "..."},
        "relationships": {"children": {"links": {"self": "...", "related": "..."}},
                          "...": {"...": "..."}},
-       "data": {"...": "..."}}
+       "links": {"...": "..."}}
       ```
 
    This is important because `jsonapi` will make assumptions about the nature
@@ -230,14 +230,6 @@ _Reminding that plural relationships only have the `links` field while singular
 relationships have both `links` and `data`. This way, `jsonapi` is able to tell
 that the relationship between `Parent` and `Child` is one-to-many._
 
-You can reload an object from the server by calling `.reload()`:
-
-```python
-child.reload()
-# equivalent to
-child = Child.get(child.id)
-```
-
 In the last example, you may have noticed that `child.related` is not empty.
 This happens with singular relationships. If you look closely, however, you
 will see that apart from the `id`, the related parent doesn't have any other
@@ -249,6 +241,14 @@ relationships.
  child.related['parent'].attributes,
  child.related['parent'].relationships)
 # ("1", {}, {})
+```
+
+You can reload an object from the server by calling `.reload()`:
+
+```python
+child.reload()
+# equivalent to
+child = Child.get(child.id)
 ```
 
 ### Fetching relationships
