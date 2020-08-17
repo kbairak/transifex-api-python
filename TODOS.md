@@ -1,25 +1,16 @@
-- [x] Support non-global setups, both with regards to host/tokens and to
-  classes (so that a service can talk to multiple microservices that expose
-  {json:api})
-
-- [x] Authentication should store a whole dict which will be merged with
-  headers, also it should be able to be dynamic
-
-- [x] Make arguments to bulk operations make more sense
+# TODO:
 
 - [ ] Increase test coverage
 
+- [ ] Plural relationships can have a `data` field that is a list
+
+- [ ] Make python 2/3 cross-compatible
+
+- [ ] Handle 204 no content
+
+# Maybe not after all:
+
 - [ ] Read openapi spec to prefill filters somehow
-
-- "Loosen" transifex-flavored {json:api} restrictions:
-
-  - [ ] Plural relationships can have a `data` field that is a list
-
-  - [x] Collection URLs can be overriden with a class-variable
-
-  - [x] Client-generated IDs can be supported if user calls `.create()` with an
-    ID kwarg; `save()`ing an object that has an ID will still send a PATCH
-    request
 
 - [ ] Standardise how the code figures out the nature of JSON objects (whether
   they're singular/plural relationships, API responses etc)
@@ -45,7 +36,24 @@
       return not has_data(obj) and has_links(obj)
   ```
 
-- [ ] Allow initialization with arbitrary keyword arguments:
+# DONE:
+
+- [x] Collection URLs can be overriden with a class-variable
+
+- [x] Client-generated IDs can be supported if user calls `.create()` with an
+ID kwarg; `save()`ing an object that has an ID will still send a PATCH
+request
+
+- [x] Support non-global setups, both with regards to host/tokens and to
+  classes (so that a service can talk to multiple microservices that expose
+  {json:api})
+
+- [x] Authentication should store a whole dict which will be merged with
+  headers, also it should be able to be dynamic
+
+- [x] Make arguments to bulk operations make more sense
+
+- [x] Allow initialization with arbitrary keyword arguments:
 
   ```python
   Child(name="Maria")
@@ -68,5 +76,3 @@
   ```
 - [x] Drop the `a`, `r` and `R` shortcuts; the field shortcuts make them
       obsolete.
-
-- [ ] Make python 2/3 cross-compatible

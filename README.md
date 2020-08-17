@@ -20,7 +20,8 @@ A python SDK for the [Transifex API (v3)](https://transifex.github.io/openapi/)
       * [Getting many resource objects at the same time](#getting-many-resource-objects-at-the-same-time)
       * [Prefetching relationships with include](#prefetching-relationships-with-include)
    * [Editing](#editing)
-      * [Saving changes, creating new resources](#saving-changes-creating-new-resources)
+      * [Saving changes](#saving-changes)
+      * [Creating new resources](#creating-new-resources)
       * [Deleting](#deleting)
       * [Editing relationships](#editing-relationships)
       * [Bulk operations](#bulk-operations)
@@ -28,7 +29,7 @@ A python SDK for the [Transifex API (v3)](https://transifex.github.io/openapi/)
 * [transifex_api usage](#transifex_api-usage)
 * [Tests](#tests)
 
-<!-- Added by: kbairak, at: Mon 17 Aug 2020 05:35:52 PM EEST -->
+<!-- Added by: kbairak, at: Mon 17 Aug 2020 10:22:44 PM EEST -->
 
 <!--te-->
 
@@ -368,7 +369,7 @@ to an object's `attributes` or `relationships`, you can always fall back to
 doing so directly:
 
 ```python
-child.attrbutes['hair_color'] = "red"
+child.attributes['hair_color'] = "red"
 child.__dict__
 # {'id': ..., 'attributes': {'name': "Hercules", 'hair_color': "red"}, ...}
 #                                                ^^^^^^^^^^^^^^^^^^^
@@ -509,7 +510,7 @@ children = Child.list().include('parent')
 
 ### Editing
 
-#### Saving changes, creating new resources
+#### Saving changes
 
 After you change some attributes or relationships, you can call `.save()` on an
 object, which will trigger a PATCH request to the server. Because usually the
@@ -535,6 +536,19 @@ child = Child.get("1")
 child.name += " the Great"
 child.save()
 ```
+
+Because setting values right before saving is a common use-case, `.save()` also
+accepts keyword arguments. These will be set on the resource object, right
+before the actual saving:
+
+```python
+child.save(name="Hercules")
+# is equivalent to
+child.name = "Hercules"
+child.save('name')
+```
+
+#### Creating new resources
 
 Calling `.save()` on an object whose `id` is not set will result in a POST
 request which will (attempt to) create the resource on the server.
@@ -599,20 +613,72 @@ This way, you can reuse a relationship from another object when creating,
 without having to fetch the relationship:
 
 ```python
-new_child = Child.create(attrbutes={'name': "Achilles"},
+new_child = Child.create(attributes={'name': "Achilles"},
                          relationships={'parent': old_child.parent})
 ```
 
-Because setting values right before saving is a common use-case, `.save()` also
-accepts keyword arguments. These will be set on the resource object, right
-before the actual saving:
+##### Magic kwargs
+
+When making new (unsaved) instances, or when you create instances on the server
+with `.create()`, you can supply any keword argument apart from `id`,
+`attributes`, `relationships`, etc and they will be interpreted as attributes
+or relationships. Anything that looks like a relationship will be interpreted
+as such while everything else will be interpreted as an attribute.
+
+Things that are interpreted as relationships are:
+
+- Resource instances
+- Resource identifiers - dictionaries with 'type' and 'id' fields
+- Relationship objects - dictionaries with a single 'data' field whose value is
+  a resource identifier
+
+So
 
 ```python
-child.save(name="Hercules")
+Child(name="Hercules")
 # is equivalent to
-child.name = "Hercules"
-child.save('name')
+Child(attributes={'name': "Hercules"})
+
+Child(parent={'type': "parents", 'id': "1"})
+# is equivalent to
+Child(relationships={'parent': {'type': "parents", 'id': "1"}})
+
+Child(parent=Parent(id="1"))
+# is equivalent to
+Child(relationships={'parent': Parent(id="1")})
 ```
+
+If you are worried about naming conflicts, for example if you want to have a
+relationship called 'attributes', an attribute that looks like a relationship
+and an attribute called 'id', you should back to using 'attributes' and
+'relationships' directly.
+
+```python
+# Don't do this
+child = Child(attributes={'type': "attributes", 'id': "1"},
+              stats={'type': "stats", 'id': "2"},
+              id="3")
+child.to_dict()
+# {'type': "children",
+#  'attributes': {'type': "attributes", 'id': "1"},
+#  'relationships': {'stats': {'data': {'type': "stats", 'id': "2"}}},
+#  'id': "3"}
+
+# Do this instead
+child = Child(relationships={'attributes': {'type': "attributes", 'id': "1"}},
+              attributes={'stats': {'type': "stats", 'id': "2"},
+                          'id': "3"})
+child.to_dict()
+# {'type': "children",
+#  'relationships': {'attributes': {'data': {'type': "attributes", 'id': "1"}}},
+#  'attributes': {'stats': {'type': "stats", 'id': "2"},
+#                 'id': "3"}}
+```
+
+_Note: `.to_dict()` returns the {json:api} representation of the Resource
+instance, ie what the payload to the server would be if we called `.save()` on
+it_
+
 
 #### Deleting
 

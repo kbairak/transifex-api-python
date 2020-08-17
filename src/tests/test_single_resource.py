@@ -34,6 +34,8 @@ def test_init():
     make_simple_assertions(foo)
     foo = Foo(SIMPLE_PAYLOAD)
     make_simple_assertions(foo)
+    foo = Foo(id="1", hello="world")
+    make_simple_assertions(foo)
 
 
 def test_new():
@@ -42,6 +44,8 @@ def test_new():
     foo = _api.new({'data': SIMPLE_PAYLOAD})
     make_simple_assertions(foo)
     foo = _api.new(SIMPLE_PAYLOAD)
+    make_simple_assertions(foo)
+    foo = _api.new(type="foos", id="1", hello="world")
     make_simple_assertions(foo)
 
 

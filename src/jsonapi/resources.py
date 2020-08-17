@@ -20,11 +20,10 @@ class Resource:
     EDITABLE = None
 
     # Creation
-    def __init__(self, data=None, *, id=None, attributes=None,
-                 relationships=None, links=None, type=None):
+    def __init__(self, data=None, **kwargs):
         """ Initialize an API resource instance when you know the type. """
 
-        if type is not None and type != self.TYPE:
+        if 'type' in kwargs and kwargs['type'] != self.TYPE:
             raise ValueError("Invalid type")
 
         if data is not None:
@@ -38,8 +37,7 @@ class Resource:
                 data = data['data']
             self._overwrite(**data)
         else:
-            self._overwrite(id=id, attributes=attributes,
-                            relationships=relationships, links=links)
+            self._overwrite(**kwargs)
 
     def _overwrite(self, *,
                    # Copied from response to the instance
@@ -49,18 +47,37 @@ class Resource:
                    # Used in case of redirect responses
                    redirect=None,
                    # Ignored
-                   type=None):
+                   type=None,
+                   # Magic
+                   **kwargs):
         """ Write to the basic attributes of Resource. Used by '__init__',
             'reload', '__copy__' and 'save'
         """
 
+        # Handle "magic" kwargs
+        if attributes is None:
+            attributes = {}
+        if relationships is None:
+            relationships = {}
+        for key, value in kwargs.items():
+            is_resource = isinstance(value, Resource)
+            is_dict = isinstance(value, collections.abc.Mapping)
+            is_resource_identifier = (is_dict and
+                                      {'type', 'id'} <= set(value.keys()))
+            is_relationship = (is_dict and
+                               set(value.keys()) == {'data'} and
+                               isinstance(value['data'],
+                                          collections.abc.Mapping) and
+                               {'type', 'id'} <= set(value['data'].keys()))
+            if is_resource or is_resource_identifier or is_relationship:
+                relationships[key] = value
+            else:
+                attributes[key] = value
+
         # Copy from response
         self.id = id
 
-        if attributes is not None:
-            self.attributes = deepcopy(attributes)
-        else:
-            self.attributes = {}
+        self.attributes = deepcopy(attributes)
 
         if links is not None:
             self.links = deepcopy(links)
@@ -71,8 +88,6 @@ class Resource:
 
         # Relationships
         self.relationships, self.related = {}, {}
-        if relationships is None:
-            relationships = {}
         for key, value in relationships.items():
             self._set_relationship(key, value)
             if (self.relationships[key] is None or
