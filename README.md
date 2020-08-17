@@ -295,24 +295,11 @@ print(parent.related['children'][1].name)
 
 ### Shortcuts
 
-Because `attributes`, `related` and `relationships` are so important, resource
-objects have the `a`, `r` and `R` shortcuts respectively (`related` is slightly
-more useful than `relationships` so the easier `r` shortcut was chosen for it).
+You can access all keys in `attributes` and `related` directly on the resource
+object:
 
 ```python
-child.a == child.attributes
-# True
-child.r == child.related
-# True
-child.R == child.relationships
-# True
-```
-
-Furthermore, you can access all keys in `attributes` and `related` directly on
-the resource object:
-
-```python
-child.name == child.attributes['name'] == child.a['name'] == "Hercules"
+child.name == child.attributes['name'] == "Hercules"
 # True
 ```
 
@@ -347,8 +334,9 @@ doing so directly:
 
 ```python
 child.attrbutes['hair_color'] = "red"
-# or
-child.a['hair_color'] = "red"
+child.__dict__
+# {'id': ..., 'attributes': {'name': "Hercules", 'hair_color': "red"}, ...}
+#                                                ^^^^^^^^^^^^^^^^^^^
 ```
 
 ### Getting many resource objects at the same time
@@ -644,8 +632,6 @@ directly:
 
 ```python
 child.relationships['parent'] = {'data': {'type': "parents", 'id': "2"}}
-# or
-child.R['parent'] = {'data': {'type': "parents", 'id': "2"}}
 
 child.save('parent')
 ```

@@ -65,8 +65,8 @@ def test_bulk_create():
 
     for i in range(4):
         assert result[i].id == str(i + 1)
-        assert result[i].name == result[i].a['name'] == f"bulk_item {i + 1}"
-        assert result[i].created == result[i].a['created'] == f"now + {i + 1}"
+        assert result[i].name == result[i].attributes['name'] == f"bulk_item {i + 1}"
+        assert result[i].created == result[i].attributes['created'] == f"now + {i + 1}"
 
 
 @responses.activate
@@ -105,8 +105,8 @@ def test_bulk_update():
     for i in range(5):
         assert result[i].id == str(i + 1)
         assert (result[i].name ==
-                result[i].a['name'] ==
+                result[i].attributes['name'] ==
                 f"modified name {i + 1}")
         assert (result[i].last_update ==
-                result[i].a['last_update'] ==
+                result[i].attributes['last_update'] ==
                 f"now + {i + 1}")

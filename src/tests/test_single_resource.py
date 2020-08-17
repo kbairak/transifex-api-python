@@ -21,9 +21,9 @@ def make_simple_assertions(foo):
     assert isinstance(foo, Foo)
     assert foo.TYPE == "foos"
     assert foo.id == "1"
-    assert foo.attributes == foo.a == {'hello': "world"}
-    assert foo.relationships == foo.R == {}
-    assert foo.related == foo.r == {}
+    assert foo.attributes == {'hello': "world"}
+    assert foo.relationships == {}
+    assert foo.related == {}
     assert foo.hello == "world"
 
 
@@ -60,7 +60,7 @@ def test_setattr():
     foo = Foo(SIMPLE_PAYLOAD)
     foo.hello = "WORLD"
     assert foo.hello == "WORLD"
-    assert foo.a == foo.attributes == {'hello': "WORLD"}
+    assert foo.attributes == {'hello': "WORLD"}
 
 
 @responses.activate
@@ -73,7 +73,7 @@ def test_reload():
 
     foo.reload()
     assert foo.hello == "WORLD"
-    assert foo.a == foo.attributes == {'hello': "WORLD"}
+    assert foo.attributes == {'hello': "WORLD"}
 
 
 @responses.activate
@@ -137,7 +137,7 @@ def test_save_new():
 
     assert foo.id == "1"
     assert foo.created == "NOW!!!"
-    assert foo.a == foo.attributes == {'hello': "world", 'created': "NOW!!!"}
+    assert foo.attributes == {'hello': "world", 'created': "NOW!!!"}
 
 
 @responses.activate
@@ -149,7 +149,7 @@ def test_create():
     foo = Foo.create(attributes={'hello': "world"})
 
     assert foo.created == "NOW!!!"
-    assert foo.a == foo.attributes == {'hello': "world", 'created': "NOW!!!"}
+    assert foo.attributes == {'hello': "world", 'created': "NOW!!!"}
 
 
 @responses.activate
@@ -167,7 +167,7 @@ def test_create_with_id():
         'attributes': {'hello': "world"},
     }}
     assert foo.created == "NOW!!!"
-    assert foo.a == foo.attributes == {'hello': "world", 'created': "NOW!!!"}
+    assert foo.attributes == {'hello': "world", 'created': "NOW!!!"}
     assert foo.id == "1"
 
 

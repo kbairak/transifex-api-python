@@ -55,7 +55,7 @@ def test_initialization():
                 for i in range(len(children) - 1)))
 
     child = Child(relationships={'parent': None})
-    assert child.R == child.r == {'parent': None}
+    assert child.relationships == child.related == {'parent': None}
 
 
 @responses.activate
@@ -65,25 +65,22 @@ def test_singular_fetch():
 
     child = Child(child_payloads[1])
 
-    assert (child.R ==
-            child.relationships ==
+    assert (child.relationships ==
             {'parent': {'data': {'type': "parents", 'id': "1"},
                         'links': {'self': "/children/1/relationships/parent",
                                   'related': "/parents/1"}}})
-    assert (child.r['parent'] ==
-            child.related['parent'] ==
+    assert (child.related['parent'] ==
             child.parent ==
             Parent(id="1"))
-    assert child.parent.a == child.parent.attributes == {}
+    assert child.parent.attributes == child.parent.attributes == {}
 
     child.fetch('parent')
 
     assert len(responses.calls) == 1
-    assert (child.r['parent'] ==
-            child.related['parent'] ==
+    assert (child.related['parent'] ==
             child.parent ==
             Parent(id="1"))
-    assert child.parent.a == child.parent.attributes == {'name': "parent 1"}
+    assert child.parent.attributes == {'name': "parent 1"}
     assert child.parent.name == "parent 1"
 
 
@@ -99,12 +96,12 @@ def test_fetch_plural():
                   match_querystring=True)
 
     parent = Parent(parent_payloads[1])
-    assert 'children' not in parent.r
+    assert 'children' not in parent.related
     parent.fetch('children')
     list(parent.children)
 
     assert len(responses.calls) == 1
-    assert 'children' in parent.r
+    assert 'children' in parent.related
     assert len(parent.children) == 3
     assert isinstance(parent.children[0], Child)
     assert parent.children[1].id == "2"
@@ -129,8 +126,8 @@ def test_change_parent_with_save():
     child = Child(child_payloads[1])
     child.parent = Parent(parent_payloads[2])
 
-    assert child.R['parent']['data']['id'] == "2"
-    assert child.r['parent'].id == child.parent.id == "2"
+    assert child.relationships['parent']['data']['id'] == "2"
+    assert child.related['parent'].id == child.parent.id == "2"
 
     child.save()
 
@@ -149,7 +146,7 @@ def test_change_parent_with_change():
     new_parent = Parent(id="2")
     child.change('parent', new_parent)
 
-    assert child.R['parent']['data']['id'] == "2"
+    assert child.relationships['parent']['data']['id'] == "2"
     assert child.parent.id == "2"
     assert child.parent == new_parent
 

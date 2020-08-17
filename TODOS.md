@@ -66,7 +66,7 @@
 
   Child(attributes={'attributes': ["naughty", "tall"]})
   ```
-- [ ] Drop the `a`, `r` and `R` shortcuts; the field shortcuts make them
+- [x] Drop the `a`, `r` and `R` shortcuts; the field shortcuts make them
       obsolete.
 
 - [ ] Make python 2/3 cross-compatible

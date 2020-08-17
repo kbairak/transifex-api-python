@@ -32,7 +32,7 @@ class Resource:
             # - Parent(requests.get('http://api.com/parents/1').json())
             # - Parent(requests.get('http://api.com/parents/1').json()['data'])
             # Or a relationship:
-            # - `Parent(user.R['parent'])`
+            # - `Parent(user.relationships['parent'])`
             # - `Parent({'data': {'type': "parents", 'id': "1"}})`
             if 'data' in data:
                 data = data['data']
@@ -75,13 +75,14 @@ class Resource:
             relationships = {}
         for key, value in relationships.items():
             self._set_relationship(key, value)
-            if self.R[key] is None or 'data' in self.R[key]:
+            if (self.relationships[key] is None or
+                    'data' in self.relationships[key]):
                 # Singular relationship
                 self.set_related(key, value)
 
         if included is not None:
             included = {(item['type'], item['id']): item for item in included}
-            for relationship_name, relationship in self.R.items():
+            for relationship_name, relationship in self.relationships.items():
                 if relationship is None or 'data' not in relationship:
                     continue
                 key = (relationship['data']['type'],
@@ -102,13 +103,13 @@ class Resource:
         """
 
         if isinstance(value, Resource):
-            self.R[key] = value.as_relationship()
+            self.relationships[key] = value.as_relationship()
         else:
             if value is not None and set(value.keys()) == {'type', 'id'}:
                 # Resource identifier was passed
                 value = {'data': value}
             if value is None or 'data' in value or 'links' in value:
-                self.R[key] = value
+                self.relationships[key] = value
             else:
                 raise ValueError(f"Invalid type '{value}' for relationship "
                                  f"'{key}'")
@@ -128,26 +129,31 @@ class Resource:
             instance or None.
         """
 
-        if key not in self.R:
+        if key not in self.relationships:
             raise ValueError(f"Cannot change relationship '{key}' because "
                              f"it's not an existing relationship.")
-        if self.R[key] is not None and 'data' not in self.R[key]:
+        if (self.relationships[key] is not None and
+                'data' not in self.relationships[key]):
             raise ValueError(f"Cannot change relationship '{key}' because "
                              f"it's a plural relationship. Use '.add()', "
                              f"'.remove()' or '.reset()' instead.")
 
         value = self.API.as_resource(value)
-        from_null_to_not_null = self.R[key] is None and value is not None
-        from_not_null_to_null = self.R[key] is not None and value is None
-        data_changed = (self.R[key] is not None and
-                        value is not None and
-                        self.R[key]['data'] != value.as_resource_identifier())
+        from_null_to_not_null = (self.relationships[key] is None and
+                                 value is not None)
+        from_not_null_to_null = (self.relationships[key] is not None and
+                                 value is None)
+        data_changed = (
+            self.relationships[key] is not None and
+            value is not None and
+            self.relationships[key]['data'] != value.as_resource_identifier()
+        )
         if from_null_to_not_null or from_not_null_to_null or data_changed:
             if value is None:
-                self.R[key] = None
+                self.relationships[key] = None
             else:
-                self.R[key] = value.as_relationship()
-        self.r[key] = value
+                self.relationships[key] = value.as_relationship()
+        self.related[key] = value
 
     @classmethod
     def as_resource(cls, data):
@@ -176,38 +182,14 @@ class Resource:
         return result
 
     # Shortcuts
-    @property
-    def a(self):
-        """ Shortcut for `attributes` """
-
-        # Doing this instead of `self.a = self.attributes` in `__init__` in
-        # order to not pollute `self.__dict__`
-        return self.attributes
-
-    @property
-    def R(self):
-        """ Shortcut for `relationships` """
-
-        # Doing this instead of `self.R = self.relationships` in `__init__` in
-        # order to not pollute `self.__dict__`
-        return self.relationships
-
-    @property
-    def r(self):
-        """ Shortcut for `related` """
-
-        # Doing this instead of `self.r = self.related` in `__init__` in order
-        # to not pollute `self.__dict__`
-        return self.related
-
     def __getattr__(self, attr):
         if attr in ('a', 'attributes', 'R', 'relationships', 'r', 'related',
                     'id', 'links', 'redirect', 'API'):
             return super().__getattribute__(attr)
-        elif attr in self.a:
-            return self.a[attr]
-        elif attr in self.r:
-            return self.r[attr]
+        elif attr in self.attributes:
+            return self.attributes[attr]
+        elif attr in self.related:
+            return self.related[attr]
         else:
             return super().__getattribute__(attr)
 
@@ -215,9 +197,9 @@ class Resource:
         if attr in ('id', 'attributes', 'relationships', 'related', 'links',
                     'redirect', 'API'):
             super().__setattr__(attr, value)
-        elif attr in self.a:
-            self.a[attr] = value
-        elif attr in self.R:
+        elif attr in self.attributes:
+            self.attributes[attr] = value
+        elif attr in self.relationships:
             try:
                 self.set_related(attr, value)
             except ValueError as e:
@@ -257,16 +239,17 @@ class Resource:
 
             Related object will be available after that:
 
-                >>> print(foo.r['parent'].a['name'])
+                >>> print(foo.related['parent'].attributes['name'])
 
             Supports plural relationships, but only one page will be available:
 
                 >>> foo.fetch('children')
                 >>> # Only first page
-                >>> print([child.a['name'] for child in foo.r['children']])
+                >>> print([child.attributes['name']
+                ...        for child in foo.related['children']])
                 >>> # All pages
-                >>> print([child.a['name']
-                ...        for child in foo.r['children'].all()])
+                >>> print([child.attributes['name']
+                ...        for child in foo.related['children'].all()])
 
             If only one positional argument is supplied, it will return the
             related object or queryset:
@@ -280,21 +263,22 @@ class Resource:
         """
 
         for relationship_name in relationship_names:
-            if relationship_name not in self.R:
+            if relationship_name not in self.relationships:
                 raise ValueError(f"{repr(self)} doesn't have relationship "
                                  f"'{relationship_name}'")
 
         for relationship_name in relationship_names:
-            relationship = self.R[relationship_name]
+            relationship = self.relationships[relationship_name]
 
             if relationship is None:
                 continue
 
             is_singular_fetched = (
-                isinstance(self.r.get(relationship_name), Resource) and
-                (self.r[relationship_name].a or self.r[relationship_name].R)
+                isinstance(self.related.get(relationship_name), Resource) and
+                (self.related[relationship_name].attributes or
+                 self.related[relationship_name].relationships)
             )
-            is_plural_fetched = isinstance(self.r.get(relationship_name),
+            is_plural_fetched = isinstance(self.related.get(relationship_name),
                                            Queryset)
             if (is_singular_fetched or is_plural_fetched) and not force:
                 # Has been fetched already
@@ -302,18 +286,18 @@ class Resource:
 
             if 'data' in relationship:
                 # Singular relationship
-                self.r[relationship_name].reload()
+                self.related[relationship_name].reload()
             else:
                 # Plural relationship
                 url = relationship.\
                     get('links', {}).\
                     get('related',
                         f"/{self.TYPE}/{self.id}/{relationship_name}")
-                self.r[relationship_name] = Queryset(self.API, url)
+                self.related[relationship_name] = Queryset(self.API, url)
 
         if len(relationship_names) == 1:
             # This way you can do `project.fetch('languages').filter(...)`
-            return self.r[relationship_names[0]]
+            return self.related[relationship_names[0]]
 
     @classmethod
     def list(cls):
@@ -347,7 +331,7 @@ class Resource:
                 ...     EDITABLE = ['name']
 
                 >>> foo = Foo.get(1)
-                >>> foo.a['name'] = 'footastic'
+                >>> foo.attributes['name'] = 'footastic'
                 >>> foo = foo.save()
                 >>> # or
                 >>> foo = foo.save('name', ...)
@@ -384,7 +368,7 @@ class Resource:
     def _post_save(self, response_body):
         data = response_body['data']
 
-        related = deepcopy(self.r)
+        related = deepcopy(self.related)
         for relationship_name, related_instance in list(related.items()):
             if isinstance(related_instance, Queryset):
                 continue  # Plural relationship
@@ -417,16 +401,17 @@ class Resource:
         editable_fields = fields or self.EDITABLE
         if editable_fields is not None:
             for field in editable_fields:
-                if field in self.a:
-                    result.setdefault('attributes', {})[field] = self.a[field]
-                elif field in self.R:
+                if field in self.attributes:
+                    result.setdefault('attributes', {})[field] =\
+                        self.attributes[field]
+                elif field in self.relationships:
                     result.setdefault('relationships', {})[field] =\
-                        self.R[field]
+                        self.relationships[field]
         else:
-            if self.a:
-                result['attributes'] = self.a
-            if self.R:
-                result['relationships'] = self.R
+            if self.attributes:
+                result['attributes'] = self.attributes
+            if self.relationships:
+                result['relationships'] = self.relationships
         return result
 
     @classmethod
@@ -474,7 +459,7 @@ class Resource:
                 >>> # Change `child`'s parent from `parent_a` to `parent_b`
                 >>> parent_a, parent_b = Parent.list()[:2]
                 >>> child = Child.get(XXX)
-                >>> assert child.R['parent'] == parent_a
+                >>> assert child.relationships['parent'] == parent_a
                 >>> child.change('parent', parent_b)
 
             Also works with resource identifiers in case we don't have the full
@@ -483,7 +468,8 @@ class Resource:
                 >>> # Make sure `child_a` and `child_b` have the same parent,
                 >>> # without fetching the parent
                 >>> child_a, child_b = Child.list()[:2]
-                >>> child_b.change('parent', child_a.R['parent']['data'])
+                >>> child_b.change('parent',
+                ...                child_a.relationships['parent']['data'])
 
             Note: Depending on the API implementation, this can probably be
             also achieved by changing the relationship and saving:
@@ -491,8 +477,9 @@ class Resource:
                 >>> # Change `child`'s parent from `parent_a` to `parent_b`
                 >>> parent_a, parent_b = Parent.list()[:2]
                 >>> child = Child.get(XXX)
-                >>> assert child.R['parent']['data']['id'] == parent_a.id
-                >>> child.R['parent'] = {
+                >>> assert (child.relationships['parent']['data']['id'] ==
+                ...         parent_a.id)
+                >>> child.relationships['parent'] = {
                 ...     'data': parent_b.as_resource_identifier(),
                 ... }
                 >>> child.save('parent')
@@ -500,9 +487,9 @@ class Resource:
 
         value = self.API.as_resource(value)
         self._edit_relationship('patch', field, value.as_resource_identifier())
-        self.R[field]['data'] = value.as_resource_identifier()
-        if self.r[field] != value:
-            self.r[field] = value
+        self.relationships[field]['data'] = value.as_resource_identifier()
+        if self.related[field] != value:
+            self.related[field] = value
 
     def add(self, field, values):
         """ Adds items to a plural relationship. Usage:
@@ -519,8 +506,9 @@ class Resource:
 
                 >>> # Make sure parents of `child_a` and `child_b` become
                 ...  # children of `grandparent`
-                >>> grandparent.add('children', [child_a.R['parent']['data'],
-                ...                              child_b.R['parent']['data']])
+                >>> grandparent.add('children',
+                ...                 [child_a.relationships['parent']['data'],
+                ...                  child_b.relationships['parent']['data']])
 
             If the plural relationship was previously fetched, it must be
             refetched for the changes to appear.
@@ -545,9 +533,11 @@ class Resource:
 
                 >>> # Make sure parents of `child_a` and `child_b` are no
                 ... # longer children of `grandparent`
-                >>> grandparent.remove('children',
-                ...                    [child_a.R['parent']['data'],
-                ...                     child_b.R['parent']['data']])
+                >>> grandparent.remove(
+                ...     'children',
+                ...     [child_a.relationships['parent']['data'],
+                ...      child_b.relationships['parent']['data']]
+                ... )
 
             If the plural relationship was previously fetched, it must be
             refetched for the changes to appear.
@@ -563,9 +553,12 @@ class Resource:
 
                 >>> parent = Parent.get(XXX)
                 >>> child_a, child_b, child_c = Child.list()[:3]
-                >>> assert child_a.R['parent']['data']['id'] == parent.id
-                >>> assert child_b.R['parent']['data']['id'] != parent.id
-                >>> assert child_c.R['parent']['data']['id'] != parent.id
+                >>> assert (child_a.relationships['parent']['data']['id'] ==
+                ...         parent.id)
+                >>> assert (child_b.relationships['parent']['data']['id'] !=
+                ...         parent.id)
+                >>> assert (child_c.relationships['parent']['data']['id'] !=
+                ...         parent.id)
 
                 >>> parent.reset('children', [child_b, child_c])
 
@@ -579,7 +572,7 @@ class Resource:
         self._edit_plural_relationship('patch', field, values)
 
     def _edit_relationship(self, method, field, value):
-        url = self.R[field].\
+        url = self.relationships[field].\
             get('links', {}).\
             get('self', f"/{self.TYPE}/{self.id}/relationships/{field}")
         self.API.request(method, url, json={'data': value})
@@ -642,15 +635,20 @@ class Resource:
 
             Usage:
 
-                >>> # Only attributes >>> result =
-                Foo.bulk_create([{'username': "username1"}, ...
-                {'username': "username2"}, ...
-                {'username': "username3"}]) >>> result[0].id <<< 1 >>>
-                result[0].a['username'] <<< 'username1'
+                >>> # Only attributes
+                >>> result = Foo.bulk_create([{'username': "username1"},
+                ...                           {'username': "username2"},
+                ...                           {'username': "username3"}])
+                >>> result[0].id
+                <<< 1
+                >>> result[0].attributes['username']
+                <<< 'username1'
 
-                >>> # attributes and relationships >>> parent = ...  >>> result
-                = Child.bulk_create( ...     [({'username': "username1"},
-                {'parent': parent}), ...      ...] ... )
+                >>> # attributes and relationships
+                >>> parent = ...
+                >>> result = Child.bulk_create([({'username': "username1"},
+                ...                              {'parent': parent}),
+                ...                             ...])
         """
 
         payload = []
@@ -667,10 +665,10 @@ class Resource:
                 raise ValueError("'id' supplied as part of a new instance")
 
             payload.append({'type': cls.TYPE})
-            if item.a:
-                payload[-1]['attributes'] = item.a
-            if item.R:
-                payload[-1]['relationships'] = item.R
+            if item.attributes:
+                payload[-1]['attributes'] = item.attributes
+            if item.relationships:
+                payload[-1]['relationships'] = item.relationships
 
         response_body = cls.API.request('post', f"/{cls.TYPE}",
                                         json={'data': payload}, bulk=True)
@@ -696,7 +694,7 @@ class Resource:
 
                 >>> foos = Foo.list(...)
                 >>> for foo in foos:
-                ...     foo.a['approved'] = True
+                ...     foo.attributes['approved'] = True
                 >>> foos = Foo.bulk_update(foos, ['approved'])
         """
 
@@ -725,7 +723,7 @@ class Resource:
                 raise ValueError("'id' not supplied as part of an update "
                                  "operation")
 
-            attributes, relationships = item.a, item.R
+            attributes, relationships = item.attributes, item.relationships
             if fields:
                 if attributes is not None:
                     attributes = {key: value
@@ -772,9 +770,9 @@ class Resource:
 
     def __copy__(self):
         # Will eventually call `_overwrite` so `deepcopy` will be used
-        relationships = deepcopy(self.R)
-        relationships.update(self.r)
-        return self.__class__(id=self.id, attributes=self.a,
+        relationships = deepcopy(self.relationships)
+        relationships.update(self.related)
+        return self.__class__(id=self.id, attributes=self.attributes,
                               relationships=relationships, links=self.links,
                               redirect=self.redirect)
 
