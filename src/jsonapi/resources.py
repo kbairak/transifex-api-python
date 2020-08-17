@@ -211,11 +211,12 @@ class Resource:
     def reload(self, *, include=None):
         """ Fetch fresh data from the server for the object.  """
 
-        url = self._get_url()
         params = None
         if include is not None:
             params = {'include': ','.join(include)}
-        response_body = self.API.request('get', url, params=params)
+        response_body = self.API.request('get',
+                                         self.get_item_url(),
+                                         params=params)
         if (isinstance(response_body, requests.Response) and
                 response_body.status_code == 303):
             self._overwrite(redirect=response_body.headers['Location'])
@@ -352,17 +353,18 @@ class Resource:
         payload = self.as_resource_identifier()
         payload.update(self._generate_data_for_saving(*fields))
         response_body = self.API.request('patch',
-                                         self._get_url(),
+                                         self.get_item_url(),
                                          json={'data': payload})
         self._post_save(response_body)
 
     def _save_new(self, *fields):
-        url = f"/{self.TYPE}"
         payload = {'type': self.TYPE}
         if self.id is not None:
             payload['id'] = self.id
         payload.update(self._generate_data_for_saving(*fields))
-        response_body = self.API.request('post', url, json={'data': payload})
+        response_body = self.API.request('post',
+                                         self.get_collection_url(),
+                                         json={'data': payload})
         self._post_save(response_body)
 
     def _post_save(self, response_body):
@@ -429,7 +431,9 @@ class Resource:
 
         if type is None and cls.TYPE is not None:
             type = cls.TYPE
-        response_body = cls.API.request('post', f"/{type}", **kwargs)
+        response_body = cls.API.request('post',
+                                        cls.get_collection_url(),
+                                        **kwargs)
         return cls.API.new(response_body)
 
     def follow(self):
@@ -449,7 +453,7 @@ class Resource:
                 >>> foo.delete()
         """
 
-        self.API.request('delete', self._get_url())
+        self.API.request('delete', self.get_item_url())
         self.id = None
 
     # Editing relationshps
@@ -614,7 +618,9 @@ class Resource:
                 item = cls(id=item)
             payload.append(item.as_resource_identifier())
 
-        cls.API.request('delete', f"/{cls.TYPE}", json={'data': payload},
+        cls.API.request('delete',
+                        cls.get_collection_url(),
+                        json={'data': payload},
                         bulk=True)
         return len(payload)
 
@@ -670,8 +676,10 @@ class Resource:
             if item.relationships:
                 payload[-1]['relationships'] = item.relationships
 
-        response_body = cls.API.request('post', f"/{cls.TYPE}",
-                                        json={'data': payload}, bulk=True)
+        response_body = cls.API.request('post',
+                                        cls.get_collection_url(),
+                                        json={'data': payload},
+                                        bulk=True)
         return Queryset.from_data(cls.API, response_body)
 
     @classmethod
@@ -743,8 +751,10 @@ class Resource:
                     for key, value in relationships.items()
                 }
 
-        response_body = cls.API.request('patch', f"/{cls.TYPE}",
-                                        json={'data': payload}, bulk=True)
+        response_body = cls.API.request('patch',
+                                        cls.get_collection_url(),
+                                        json={'data': payload},
+                                        bulk=True)
         return Queryset.from_data(cls.API, response_body)
 
     # Utils
@@ -782,7 +792,11 @@ class Resource:
     def as_relationship(self):
         return {'data': self.as_resource_identifier()}
 
-    def _get_url(self):
+    @classmethod
+    def get_collection_url(cls):
+        return f"/{cls.TYPE}"
+
+    def get_item_url(self):
         if 'self' in self.links:
             return self.links['self']
         else:

@@ -8,24 +8,27 @@ A python SDK for the [Transifex API (v3)](https://transifex.github.io/openapi/)
 * [Transifex-flavored {json:api}](#transifex-flavored-jsonapi)
 * [Installation](#installation)
 * [jsonapi usage](#jsonapi-usage)
- * [Setting up](#setting-up)
-    * [Registering Resource subclasses](#registering-resource-subclasses)
-    * [Customizing setup configuration](#customizing-setup-configuration)
-    * [Authentication](#authentication)
- * [Getting a single resource object from the API](#getting-a-single-resource-object-from-the-api)
- * [Fetching relationships](#fetching-relationships)
- * [Shortcuts](#shortcuts)
- * [Getting many resource objects at the same time](#getting-many-resource-objects-at-the-same-time)
- * [Prefetching relationships with include](#prefetching-relationships-with-include)
- * [Saving changes, creating new resources](#saving-changes-creating-new-resources)
- * [Deleting](#deleting)
- * [Editing relationships](#editing-relationships)
- * [Bulk operations](#bulk-operations)
- * [Form uploads, redirects](#form-uploads-redirects)
+   * [Setting up](#setting-up)
+      * [Registering Resource subclasses](#registering-resource-subclasses)
+      * [Customizing setup configuration](#customizing-setup-configuration)
+      * [Authentication](#authentication)
+   * [Retrieval](#retrieval)
+      * [URLs](#urls)
+      * [Getting a single resource object from the API](#getting-a-single-resource-object-from-the-api)
+      * [Fetching relationships](#fetching-relationships)
+      * [Shortcuts](#shortcuts)
+      * [Getting many resource objects at the same time](#getting-many-resource-objects-at-the-same-time)
+      * [Prefetching relationships with include](#prefetching-relationships-with-include)
+   * [Editing](#editing)
+      * [Saving changes, creating new resources](#saving-changes-creating-new-resources)
+      * [Deleting](#deleting)
+      * [Editing relationships](#editing-relationships)
+      * [Bulk operations](#bulk-operations)
+      * [Form uploads, redirects](#form-uploads-redirects)
 * [transifex_api usage](#transifex_api-usage)
 * [Tests](#tests)
 
-<!-- Added by: kbairak, at: Mon 17 Aug 2020 12:20:21 PM EEST -->
+<!-- Added by: kbairak, at: Mon 17 Aug 2020 05:35:52 PM EEST -->
 
 <!--te-->
 
@@ -86,11 +89,7 @@ and they consist of the following:
    This is important because `jsonapi` will make assumptions about the nature
    of relationships based on the existence of these fields.
 
-2. Collection endpoints always have the form `/<type>` and all resource
-   endpoints always have the form `/<type>/<id>` (this is not required by the
-   {json:api} specification, but is recommended)
-
-3. The API may support bulk operations, which use the
+2. The API may support bulk operations, which use the
    `application/vnd.api+json;profile="bulk"` Content-Type, as described by our
    [bulk operations {json:api} profile](https://github.com/transifex/openapi/blob/devel/txapi_spec/bulk_profile.md)
 
@@ -182,7 +181,43 @@ The `auth` argument to `JsonApi` or `setup` can either be:
 2. A callable, in which case the return value is expected to be a dictionary
    which will be merged with the headers of all requests to the API server
 
-### Getting a single resource object from the API
+   ```python
+   import datetime
+   import jsonapi
+   from .secrets import KEY
+   from .crypto import sign
+
+   def myauth():
+       return {'x-signature': sign(KEY, datetime.datetime.now())}
+
+   _api = jsonapi.JsonApi(host="https://my.api.com", auth=myauth)
+   ```
+
+### Retrieval
+
+#### URLs
+
+By default, collection URLs have the form `/<type>` (eg `/children`) and item
+URLs have the form `/<type>/<id>` (eg `/children/1`). This is also part of
+{json:api}'s recommendations. If you want to customize them, you need to
+override the `get_collection_url` classmethod and the `get_item_url()` method
+of the resource's subclass:
+
+```python
+@_api.register
+class Children(jsonapi.Resource):
+    TYPE = "children"
+
+    @classmethod
+    def get_collection_url(cls):
+        return "/children_collection"
+
+    def get_item_url(self):
+        return f"/child_item/{self.id}"
+```
+
+
+#### Getting a single resource object from the API
 
 If you know the ID of the resource object, you can fetch its {json:api}
 representation with:
@@ -247,7 +282,7 @@ child.reload()
 child = Child.get(child.id)
 ```
 
-### Fetching relationships
+#### Fetching relationships
 
 In order to fetch related data, you need to call `.fetch()` with the names of
 the relationships you want to fetch:
@@ -293,7 +328,7 @@ parent.fetch('children')
 print(parent.related['children'][1].name)
 ```
 
-### Shortcuts
+#### Shortcuts
 
 You can access all keys in `attributes` and `related` directly on the resource
 object:
@@ -339,7 +374,7 @@ child.__dict__
 #                                                ^^^^^^^^^^^^^^^^^^^
 ```
 
-### Getting many resource objects at the same time
+#### Getting many resource objects at the same time
 
 You can access a collection of resource objects using one of the `list`,
 `filter`, `page`, `include`,`sort`, `fields`, `extra`, `all` and `all_pages`
@@ -455,7 +490,7 @@ print([child.name for child in parent.children])
 print([child.name for child in parent.children.all()])
 ```
 
-### Prefetching relationships with `include`
+#### Prefetching relationships with `include`
 
 If you use the `include` method on a collection retrieval or if you use the
 `include` keyword argument on `.get()` (and if the server supports it), the
@@ -472,7 +507,9 @@ children = Child.list().include('parent')
 # ["Zeus", "Zeus", ...]
 ```
 
-### Saving changes, creating new resources
+### Editing
+
+#### Saving changes, creating new resources
 
 After you change some attributes or relationships, you can call `.save()` on an
 object, which will trigger a PATCH request to the server. Because usually the
@@ -577,7 +614,7 @@ child.name = "Hercules"
 child.save('name')
 ```
 
-### Deleting
+#### Deleting
 
 Deleting happens simply by calling `.delete()` on an object. After deletion,
 the object will have the same data as before, except its `id` is set to `None`.
@@ -595,7 +632,7 @@ child.id in (None, "1")
 # False
 ```
 
-### Editing relationships
+#### Editing relationships
 
 Changing a singular relationship can happen in two ways (this also depends on
 what the server supports).
@@ -697,7 +734,7 @@ parent_b = Parent.get('2')
 parent_b.reset('children', list(parent_a.fetch('children').all()))
 ```
 
-### Bulk operations
+#### Bulk operations
 
 Resource subclasses provide the `bulk_delete`, `bulk_create` and `bulk_update`
 classmethods for API endpoints that support such operations. The arguments to
@@ -736,7 +773,7 @@ Child.delete(list(parent.children.all()))
 For more details, see our
 [bulk oprations {json:api} profile](https://github.com/transifex/openapi/blob/devel/txapi_spec/bulk_profile.md).
 
-### Form uploads, redirects
+#### Form uploads, redirects
 
 If an endpoint accepts other content-types apart from
 `application/vnd.api+json` during creation (most likely a `multipart/form-data`

@@ -15,7 +15,7 @@
 
   - [ ] Plural relationships can have a `data` field that is a list
 
-  - [ ] Collection URLs can be overriden with a class-variable
+  - [x] Collection URLs can be overriden with a class-variable
 
   - [x] Client-generated IDs can be supported if user calls `.create()` with an
     ID kwarg; `save()`ing an object that has an ID will still send a PATCH
