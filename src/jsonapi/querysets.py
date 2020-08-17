@@ -86,6 +86,25 @@ class Queryset(collections.abc.Sequence):
     def __repr__(self):
         return repr(self.data)
 
+    def to_dict(self):
+        self_url = self._url
+        if self._params:
+            self_url += ('?' +
+                         '&'.join((f"{key}={value}"
+                                   for key, value in self._params.items())))
+
+        links = {'self': self_url}
+        if self.has_next():
+            links['next'] = self.next_url()
+        else:
+            links['next'] = None
+        if self.has_previous():
+            links['previous'] = self.previous_url()
+        else:
+            links['previous'] = None
+
+        return {'data': [item.to_dict() for item in self.data], 'links': links}
+
     # Pagination
     def has_next(self):
         return bool(self.next_url)

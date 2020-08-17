@@ -84,3 +84,13 @@ class ResourceStringsAsyncUpload(jsonapi.Resource):
 @_api.register
 class User(jsonapi.Resource):
     TYPE = "users"
+
+
+@_api.register
+class TeamMembership(jsonapi.Resource):
+    TYPE = "team_memberships"
+
+
+@_api.register
+class ResourceLanguageStats(jsonapi.Resource):
+    TYPE = "resource_language_stats"

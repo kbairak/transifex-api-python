@@ -11,16 +11,27 @@
 
 - [ ] Read openapi spec to prefill filters somehow
 
+- "Loosen" transifex-flavored {json:api} restrictions:
+
+  - [ ] Plural relationships can have a `data` field that is a list
+
+  - [ ] Collection URLs can be overriden with a class-variable
+
+  - [ ] Client-generated IDs can be supported if user calls `.create()` with an
+    ID kwarg; `save()`ing an object that has an ID will still send a PATCH
+    request
+
 - [ ] Standardise how the code figures out the nature of JSON objects (whether
   they're singular/plural relationships, API responses etc)
 
   Example:
 
   ```python
-  # jsonapi/resolvers.py
+  # jsonapi/utils.py
   def has_data(obj):
       return 'data' in obj
 
+        self.team = Team2.objects.create(organization=self.e2f)
   def has_links(obj):
       return 'links' in obj
 
@@ -32,4 +43,26 @@
 
   def is_plural_relationship(obj):
       return not has_data(obj) and has_links(obj)
+  ```
+
+- [ ] Allow initialization with arbitrary keyword arguments:
+
+  ```python
+  Child(name="Maria")
+  # Equivalent to
+  Child(attributes={'name': "Maria"})
+
+  parent = Parent.get(...)
+  Child(parent=parent)
+  # Equivalent to
+  Child(relationships={'parent': parent})
+
+  Child(parent={'type': "parents", 'id': "1"})
+  # Equivalent to
+  Child(relationships={'parent': {'type': "parents", 'id': "1"}})
+
+  # If you definitely want something that could be misunderstood, you can fall
+  # back to using 'attributes' and 'relationships'
+
+  Child(attributes={'attributes': ["naughty", "tall"]})
   ```
