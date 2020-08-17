@@ -153,6 +153,25 @@ def test_create():
 
 
 @responses.activate
+def test_create_with_id():
+    new_payload = deepcopy(SIMPLE_PAYLOAD)
+    new_payload['attributes']['created'] = "NOW!!!"
+    responses.add(responses.POST, f"{host}/foos", json={'data': new_payload})
+
+    foo = Foo.create(id="2", attributes={'hello': "world"})
+
+    assert len(responses.calls) == 1
+    assert json.loads(responses.calls[0].request.body) == {'data': {
+        'type': "foos",
+        'id': "2",
+        'attributes': {'hello': "world"},
+    }}
+    assert foo.created == "NOW!!!"
+    assert foo.a == foo.attributes == {'hello': "world", 'created': "NOW!!!"}
+    assert foo.id == "1"
+
+
+@responses.activate
 def test_delete():
     responses.add(responses.DELETE, f"{host}/foos/1")
 

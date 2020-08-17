@@ -360,9 +360,28 @@ class Resource:
             fields.add(key)
 
         if self.id is not None:
-            response_body = self._save_existing(*fields)
+            self._save_existing(*fields)
         else:
-            response_body = self._save_new(*fields)
+            self._save_new(*fields)
+
+    def _save_existing(self, *fields):
+        payload = self.as_resource_identifier()
+        payload.update(self._generate_data_for_saving(*fields))
+        response_body = self.API.request('patch',
+                                         self._get_url(),
+                                         json={'data': payload})
+        self._post_save(response_body)
+
+    def _save_new(self, *fields):
+        url = f"/{self.TYPE}"
+        payload = {'type': self.TYPE}
+        if self.id is not None:
+            payload['id'] = self.id
+        payload.update(self._generate_data_for_saving(*fields))
+        response_body = self.API.request('post', url, json={'data': payload})
+        self._post_save(response_body)
+
+    def _post_save(self, response_body):
         data = response_body['data']
 
         related = deepcopy(self.r)
@@ -393,18 +412,6 @@ class Resource:
 
         self._overwrite(relationships=relationships, **data)
 
-    def _save_existing(self, *fields):
-        payload = self.as_resource_identifier()
-        payload.update(self._generate_data_for_saving(*fields))
-        return self.API.request('patch', self._get_url(),
-                                json={'data': payload})
-
-    def _save_new(self, *fields):
-        url = f"/{self.TYPE}"
-        payload = {'type': self.TYPE}
-        payload.update(self._generate_data_for_saving(*fields))
-        return self.API.request('post', url, json={'data': payload})
-
     def _generate_data_for_saving(self, *fields):
         result = {}
         editable_fields = fields or self.EDITABLE
@@ -425,9 +432,7 @@ class Resource:
     @classmethod
     def create(cls, *args, **kwargs):
         instance = cls(*args, **kwargs)
-        if instance.id is not None:
-            raise ValueError("'id' supplied as part of a new instance")
-        instance.save()
+        instance._save_new()
         return instance
 
     # Handling files

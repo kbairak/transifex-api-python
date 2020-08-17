@@ -17,7 +17,7 @@
 
   - [ ] Collection URLs can be overriden with a class-variable
 
-  - [ ] Client-generated IDs can be supported if user calls `.create()` with an
+  - [x] Client-generated IDs can be supported if user calls `.create()` with an
     ID kwarg; `save()`ing an object that has an ID will still send a PATCH
     request
 

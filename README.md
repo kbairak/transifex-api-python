@@ -3,28 +3,29 @@ A python SDK for the [Transifex API (v3)](https://transifex.github.io/openapi/)
 ## Table of contents
 
 <!--ts-->
-   * [Introduction](#introduction)
-   * [Transifex-flavored {json:api}](#transifex-flavored-jsonapi)
-   * [Installation](#installation)
-   * [`jsonapi` usage](#jsonapi-usage)
-      * [Setting up](#setting-up)
-         * [Registering Resource subclasses](#registering-resource-subclasses)
-         * [Customizing setup configuration](#customizing-setup-configuration)
-         * [Authentication](#authentication)
-      * [Getting a single resource object from the API](#getting-a-single-resource-object-from-the-api)
-      * [Fetching relationships](#fetching-relationships)
-      * [Shortcuts](#shortcuts)
-      * [Getting many resource objects at the same time](#getting-many-resource-objects-at-the-same-time)
-      * [Prefetching relationships with include](#prefetching-relationships-with-include)
-      * [Saving changes, creating new resources](#saving-changes-creating-new-resources)
-      * [Deleting](#deleting)
-      * [Editing relationships](#editing-relationships)
-      * [Bulk operations](#bulk-operations)
-      * [Form uploads, redirects](#form-uploads-redirects)
-   * [`transifex_api` usage](#transifex_api-usage)
-   * [Tests](#tests)
+* [Table of contents](#table-of-contents)
+* [Introduction](#introduction)
+* [Transifex-flavored {json:api}](#transifex-flavored-jsonapi)
+* [Installation](#installation)
+* [jsonapi usage](#jsonapi-usage)
+ * [Setting up](#setting-up)
+    * [Registering Resource subclasses](#registering-resource-subclasses)
+    * [Customizing setup configuration](#customizing-setup-configuration)
+    * [Authentication](#authentication)
+ * [Getting a single resource object from the API](#getting-a-single-resource-object-from-the-api)
+ * [Fetching relationships](#fetching-relationships)
+ * [Shortcuts](#shortcuts)
+ * [Getting many resource objects at the same time](#getting-many-resource-objects-at-the-same-time)
+ * [Prefetching relationships with include](#prefetching-relationships-with-include)
+ * [Saving changes, creating new resources](#saving-changes-creating-new-resources)
+ * [Deleting](#deleting)
+ * [Editing relationships](#editing-relationships)
+ * [Bulk operations](#bulk-operations)
+ * [Form uploads, redirects](#form-uploads-redirects)
+* [transifex_api usage](#transifex_api-usage)
+* [Tests](#tests)
 
-<!-- Added by: kbairak, at: Mon 15 Jun 2020 05:18:20 PM EEST -->
+<!-- Added by: kbairak, at: Mon 17 Aug 2020 12:20:21 PM EEST -->
 
 <!--te-->
 
@@ -89,12 +90,7 @@ and they consist of the following:
    endpoints always have the form `/<type>/<id>` (this is not required by the
    {json:api} specification, but is recommended)
 
-3. Client-generated IDs are not supported, ie if a resource on the SDK's side
-   has a non-null ID field, then it will be considered pre-existing (`.save()`
-   will trigger a PATCH request) and if it doesn't, it will be considered
-   unsaved (`.save()` will trigger a POST request)
-
-4. The API may support bulk operations, which use the
+3. The API may support bulk operations, which use the
    `application/vnd.api+json;profile="bulk"` Content-Type, as described by our
    [bulk operations {json:api} profile](https://github.com/transifex/openapi/blob/devel/txapi_spec/bulk_profile.md)
 
@@ -515,9 +511,8 @@ child.name += " the Great"
 child.save()
 ```
 
-As mentioned before, calling `.save()` on an object whose `id` is not set will
-result in a POST request which will (attempt to) create the resource on the
-server.
+Calling `.save()` on an object whose `id` is not set will result in a POST
+request which will (attempt to) create the resource on the server.
 
 ```python
 parent = Parent.get("1")
@@ -536,6 +531,25 @@ There is a shortcut for the above, called `.create()`
 parent = Parent.get("1")
 child = Child.create(attributes={'name': "Hercules"},
                      relationships={'parent': parent})
+```
+
+Since `.save()` will issue a PATCH request when invoked on objects that have an
+ID, if you want to supply your own client-generated ID during creation, you
+**have** to use `.create()`, which will always issue a POST request.
+
+```python
+Child(attributes={'name': "Hercules"}).save()
+# POST: {data: {type: "children", attributes: {name: "Hercules"}}}
+
+Child(id="1", attributes={'name': "Hercules"}).save()
+# PATCH: {data: {type: "children", id: "1", attributes: {name: "Hercules"}}}
+
+Child.create(attributes={'name': "Hercules"})
+# POST: {data: {type: "children", attributes: {name: "Hercules"}}}
+
+Child.create(id="1", attributes={'name': "Hercules"})
+# POST: {data: {type: "children", id: "1", attributes: {name: "Hercules"}}}
+# ^^^^
 ```
 
 _Note: for relationships, you can provide either a resource instance, a
