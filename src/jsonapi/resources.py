@@ -240,12 +240,18 @@ class Resource:
                             **response_body['data'])
 
     @classmethod
-    def get(cls, id, *, type=None, include=None):
+    def get(cls, id=None, *, include=None, **filters):
         """ Get a resource object by its ID. """
 
-        instance = cls(id=id)
-        instance.reload(include=include)
-        return instance
+        if id is not None:
+            instance = cls(id=id)
+            instance.reload(include=include)
+            return instance
+        else:
+            result = cls.filter(**filters)
+            if include is not None:
+                result = result.include(*include)
+            return result.get()
 
     def fetch(self, *relationship_names, force=False):
         """ Fetches 'relationship', if it wasn't included when fetching 'self';

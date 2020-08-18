@@ -105,6 +105,21 @@ def test_get_one():
 
 
 @responses.activate
+def test_get_one_with_filters():
+    responses.add(responses.GET, f"{host}/foos?filter[hello]=world",
+                  json={'data': [SIMPLE_PAYLOAD]}, match_querystring=True)
+
+    foo = Foo.get(hello="world")
+
+    assert len(responses.calls) == 1
+    call = responses.calls[0]
+    assert call.request.headers['Content-Type'] == "application/vnd.api+json"
+    assert call.request.headers['Authorization'] == "Bearer test_api_key"
+
+    make_simple_assertions(foo)
+
+
+@responses.activate
 def test_get_one_with_include():
     responses.add(
         responses.GET,

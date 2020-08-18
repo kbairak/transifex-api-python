@@ -71,3 +71,17 @@ class JsonApiError:
         if self.source is not None:
             result['source'] = self.source
         return result
+
+
+class NotSingleItem(Exception):
+    pass
+
+
+class DoesNotExist(NotSingleItem):
+    pass
+
+
+class MultipleObjectsReturned(NotSingleItem):
+    @property
+    def count(self):
+        return self.args[0]

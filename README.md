@@ -17,8 +17,9 @@ A python SDK for the [Transifex API (v3)](https://transifex.github.io/openapi/)
       * [Getting a single resource object from the API](#getting-a-single-resource-object-from-the-api)
       * [Fetching relationships](#fetching-relationships)
       * [Shortcuts](#shortcuts)
-      * [Getting many resource objects at the same time](#getting-many-resource-objects-at-the-same-time)
+      * [Getting Resource collections](#getting-resource-collections)
       * [Prefetching relationships with include](#prefetching-relationships-with-include)
+      * [Getting single resource objects using filters](#getting-single-resource-objects-using-filters)
    * [Editing](#editing)
       * [Saving changes](#saving-changes)
       * [Creating new resources](#creating-new-resources)
@@ -29,7 +30,7 @@ A python SDK for the [Transifex API (v3)](https://transifex.github.io/openapi/)
 * [transifex_api usage](#transifex_api-usage)
 * [Tests](#tests)
 
-<!-- Added by: kbairak, at: Mon 17 Aug 2020 10:22:44 PM EEST -->
+<!-- Added by: kbairak, at: Tue 18 Aug 2020 01:55:28 PM EEST -->
 
 <!--te-->
 
@@ -375,7 +376,7 @@ child.__dict__
 #                                                ^^^^^^^^^^^^^^^^^^^
 ```
 
-#### Getting many resource objects at the same time
+#### Getting Resource collections
 
 You can access a collection of resource objects using one of the `list`,
 `filter`, `page`, `include`,`sort`, `fields`, `extra`, `all` and `all_pages`
@@ -508,6 +509,42 @@ children = Child.list().include('parent')
 # ["Zeus", "Zeus", ...]
 ```
 
+#### Getting single resource objects using filters
+
+Appending `.get()` to a collection will ensure that the collection is of size 1
+and return the one resource instance in it. If the collection's size isn't 1,
+it will raise a `jsonapi.DoesNotExist` or `jsonapi.MultipleObjectsReturned`
+exception accordingly (both are subclasses of `jsonapi.NotSingleItem`).
+
+```python
+child = Child.filter(name="Bill").get()
+```
+
+The `Resource`'s `.get()` classmethod, which we covered before, also accepts
+keyword arguments, if a positional `id` argument isn't used. Calling it this
+way, will apply the filters and use the collection's `.get()` method on the
+result.
+
+```python
+child = Child.get(name="Bill")
+# is equivalent to
+child = Child.filter(name="Bill").get()
+```
+
+_Note: The `Resource`'s `.get()` classmethod accepts an `include` keyword
+argument as well, so be careful of naming conflicts if you want to use a filter
+called 'include'_
+
+```python
+# Don't do this
+Child.get(name="Bill", include="parent")
+# equivalent to
+Child.filter(name="Bill").include('parent').get()
+
+# Do this instead
+child = Child.filter(name="Bill", include="parent").get()
+```
+
 ### Editing
 
 #### Saving changes
@@ -570,25 +607,6 @@ There is a shortcut for the above, called `.create()`
 parent = Parent.get("1")
 child = Child.create(attributes={'name': "Hercules"},
                      relationships={'parent': parent})
-```
-
-Since `.save()` will issue a PATCH request when invoked on objects that have an
-ID, if you want to supply your own client-generated ID during creation, you
-**have** to use `.create()`, which will always issue a POST request.
-
-```python
-Child(attributes={'name': "Hercules"}).save()
-# POST: {data: {type: "children", attributes: {name: "Hercules"}}}
-
-Child(id="1", attributes={'name': "Hercules"}).save()
-# PATCH: {data: {type: "children", id: "1", attributes: {name: "Hercules"}}}
-
-Child.create(attributes={'name': "Hercules"})
-# POST: {data: {type: "children", attributes: {name: "Hercules"}}}
-
-Child.create(id="1", attributes={'name': "Hercules"})
-# POST: {data: {type: "children", id: "1", attributes: {name: "Hercules"}}}
-# ^^^^
 ```
 
 _Note: for relationships, you can provide either a resource instance, a
@@ -670,22 +688,43 @@ child = Child(relationships={'attributes': {'type': "attributes", 'id': "1"}},
                           'id': "3"})
 child.to_dict()
 # {'type': "children",
-#  'relationships': {'attributes': {'data': {'type': "attributes", 'id': "1"}}},
 #  'attributes': {'stats': {'type': "stats", 'id': "2"},
-#                 'id': "3"}}
+#                 'id': "3"},
+#  'relationships': {'attributes': {'data': {'type': "attributes", 'id': "1"}}}}
 ```
 
 _Note: `.to_dict()` returns the {json:api} representation of the Resource
 instance, ie what the payload to the server would be if we called `.save()` on
 it_
 
+##### Client-generated IDs
+
+Since `.save()` will issue a PATCH request when invoked on objects that have an
+ID, if you want to supply your own client-generated ID during creation, you
+**have** to use `.create()`, which will always issue a POST request.
+
+```python
+Child(attributes={'name': "Hercules"}).save()
+# POST: {data: {type: "children", attributes: {name: "Hercules"}}}
+
+Child(id="1", attributes={'name': "Hercules"}).save()
+# PATCH: {data: {type: "children", id: "1", attributes: {name: "Hercules"}}}
+
+Child.create(attributes={'name': "Hercules"})
+# POST: {data: {type: "children", attributes: {name: "Hercules"}}}
+
+Child.create(id="1", attributes={'name': "Hercules"})
+# POST: {data: {type: "children", id: "1", attributes: {name: "Hercules"}}}
+# ^^^^
+```
+
 
 #### Deleting
 
 Deleting happens simply by calling `.delete()` on an object. After deletion,
-the object will have the same data as before, except its `id` is set to `None`.
-This happens in case you want to delete an object and instantly re-create it,
-with a different ID.
+the object will have the same data as before, except its `id` will be set to
+`None`. This happens in case you want to delete an object and instantly
+re-create it, with a different ID.
 
 ```python
 child = Child.get("1")
@@ -699,6 +738,8 @@ child.id in (None, "1")
 ```
 
 #### Editing relationships
+
+##### Singular relationships
 
 Changing a singular relationship can happen in two ways (this also depends on
 what the server supports).
@@ -757,6 +798,8 @@ child.parent = Parent(id="2")
 ```
 
 (the shortcut uses `.set_related()` during assignment internally anyway)
+
+##### Plural relationships
 
 For changing plural relationships, you can use one of the `add`, `remove` and
 `reset` methods:
@@ -905,12 +948,9 @@ organizations = {organization.slug: organization
                  for organization in transifex_api.Organization.all()}
 organization = organizations['kb_org']
 
-projects = transifex_api.Project.filter(organization=organization, slug="kb1")
-project = projects[0]
+project = transifex_api.Project.get(organization=organization, slug="kb1")
 
-resources = {resource.slug: resource
-             for resource in Resource.filter(project=project).all()}
-resource = resources['fileless']
+resource = Resource.get(project=project, slug="fileless")
 
 languages = {language.code: language
              for language in project.fetch('languages').all()}

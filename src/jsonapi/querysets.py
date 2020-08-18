@@ -1,6 +1,8 @@
 import collections
 import urllib
 
+from .exceptions import DoesNotExist, MultipleObjectsReturned
+
 
 class Queryset(collections.abc.Sequence):
     def __init__(self, API, url, params=None):
@@ -174,3 +176,10 @@ class Queryset(collections.abc.Sequence):
         params = dict(self._params)
         params.update(kwargs)
         return self.__class__(self.API, self._url, params)
+
+    def get(self):
+        if len(self) == 0:
+            raise DoesNotExist()
+        if len(self) > 1:
+            raise MultipleObjectsReturned(len(self))
+        return self[0]
