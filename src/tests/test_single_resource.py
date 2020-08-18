@@ -105,6 +105,40 @@ def test_get_one():
 
 
 @responses.activate
+def test_get_one_with_include():
+    responses.add(
+        responses.GET,
+        f"{host}/foos/1",
+        json={'data': {'type': "foos",
+                       'id': "1",
+                       'attributes': {'name': "Foo1"},
+                       'relationships': {'sibling': {'data': {'type': "foos",
+                                                              'id': "2"}}}},
+              'included': [{'type': "foos",
+                            'id': "2",
+                            'attributes': {'name': "Foo2"}}]},
+    )
+
+    foo = Foo.get('1', include=['sibling'])
+
+    assert len(responses.calls) == 1
+    call = responses.calls[0]
+    assert call.request.headers['Content-Type'] == "application/vnd.api+json"
+    assert call.request.headers['Authorization'] == "Bearer test_api_key"
+
+    assert isinstance(foo, Foo)
+    assert foo.TYPE == "foos"
+    assert foo.id == "1"
+    assert foo.attributes == {'name': "Foo1"}
+    assert foo.name == "Foo1"
+    assert isinstance(foo.sibling, Foo)
+    assert foo.sibling.TYPE == "foos"
+    assert foo.sibling.id == "2"
+    assert foo.sibling.attributes == {'name': "Foo2"}
+    assert foo.sibling.name == "Foo2"
+
+
+@responses.activate
 def test_save_existing():
     foo = Foo(SIMPLE_PAYLOAD)
 
