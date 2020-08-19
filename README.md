@@ -5,7 +5,6 @@ A python SDK for the [Transifex API (v3)](https://transifex.github.io/openapi/)
 <!--ts-->
 * [Table of contents](#table-of-contents)
 * [Introduction](#introduction)
-* [Transifex-flavored {json:api}](#transifex-flavored-jsonapi)
 * [Installation](#installation)
 * [jsonapi usage](#jsonapi-usage)
    * [Setting up](#setting-up)
@@ -30,7 +29,7 @@ A python SDK for the [Transifex API (v3)](https://transifex.github.io/openapi/)
 * [transifex_api usage](#transifex_api-usage)
 * [Tests](#tests)
 
-<!-- Added by: kbairak, at: Tue 18 Aug 2020 01:55:28 PM EEST -->
+<!-- Added by: kbairak, at: Wed 19 Aug 2020 04:17:42 PM EEST -->
 
 <!--te-->
 
@@ -41,60 +40,6 @@ is an _SDK library_ (a library that helps you build SDKs for APIs), targeted at
 [{json:api}](https://jsonapi.org/) implementations. `transifex_api` uses
 `jsonapi` to create an SDK for the
 [Transifex API](https://transifex.github.io/openapi/), with minimal code.
-
-## Transifex-flavored {json:api}
-
-Our `jsonapi` library implementation assumes that the API in question follows
-all guidelines of the {json:api} specification, plus a few more that are not
-universal. We call these extra guidelines: **_Transifex-flavored {json:api}_**
-and they consist of the following:
-
-1. A resource's relationship to another can either be:
-
-   1. A **singular-null** relationship which will be represented by a null
-      value:
-
-      ```json
-      {"type": "children",
-       "id": "...",
-       "attributes": {"...": "..."},
-       "relationships": {"parent": null,
-                         "...": {"...": "..."}},
-       "links": {"...": "..."}}
-      ```
-
-   2. A **singular-non-null** relationship which will be represented by an
-      object with both `data` and `links` fields:
-
-      ```json
-      {"type": "children",
-       "id": "...",
-       "attributes": {"...": "..."},
-       "relationships": {"parent": {"data": {"type": "parents", "id": "..."},
-                                    "links": {"self": "...", "related": "..."}},
-                         "...": {"...": "..."}},
-       "links": {"...": "..."}}
-      ```
-
-   3. A **plural** relationship which will be represented by an object with a
-      `links` field and **without** a `data` field:
-
-      ```json
-      {"type": "parents",
-       "id": "...",
-       "attributes": {"...": "..."},
-       "relationships": {"children": {"links": {"self": "...", "related": "..."}},
-                         "...": {"...": "..."}},
-       "links": {"...": "..."}}
-      ```
-
-   This is important because `jsonapi` will make assumptions about the nature
-   of relationships based on the existence of these fields.
-
-2. The API may support bulk operations, which use the
-   `application/vnd.api+json;profile="bulk"` Content-Type, as described by our
-   [bulk operations {json:api} profile](https://github.com/transifex/openapi/blob/devel/txapi_spec/bulk_profile.md)
-
 
 ## Installation
 
@@ -230,9 +175,7 @@ child = Child.get("1")
 
 The attributes of a resource object are `id`, `attributes`, `relationships`,
 `links` and `related`. `id`, `attributes`, `relationships` and `links` have
-exactly the same value as in the API response. `related` can eventually hold
-information about the resource's relationships, after they are fetched with
-`.fetch()`.
+exactly the same value as in the API response.
 
 ```python
 parent = Parent.get("1")
@@ -243,8 +186,6 @@ parent.attributes
 parent.relationships
 # {'children': {'links': {'self': "/parent/1/relationships/children",
 #                         'related': "/children?filter[parent]=1"}}}
-parent.related
-# {}
 
 child = Child.get("1")
 child.id
@@ -255,25 +196,6 @@ child.relationships
 # {'parent': {'data': {'type': "parents", 'id': "1"},
 #             'links': {'self': "/children/1/relationships/parent",
 #                       'related': "/parents/1"}}}
-child.related
-# {'parent': <Parent: 1>}
-```
-
-_Reminding that plural relationships only have the `links` field while singular
-relationships have both `links` and `data`. This way, `jsonapi` is able to tell
-that the relationship between `Parent` and `Child` is one-to-many._
-
-In the last example, you may have noticed that `child.related` is not empty.
-This happens with singular relationships. If you look closely, however, you
-will see that apart from the `id`, the related parent doesn't have any other
-data. The rest of the data can be fetched with `.fetch()`, as for the plural
-relationships.
-
-```python
-(child.related['parent'].id,
- child.related['parent'].attributes,
- child.related['parent'].relationships)
-# ("1", {}, {})
 ```
 
 You can reload an object from the server by calling `.reload()`:
@@ -284,13 +206,121 @@ child.reload()
 child = Child.get(child.id)
 ```
 
-#### Fetching relationships
+#### Relationships
 
-In order to fetch related data, you need to call `.fetch()` with the names of
-the relationships you want to fetch:
+##### Intro
+
+We need to talk a bit about how {json:api} represents relationships and how the
+`jsonapi` library interprets them. Depending on the value of a field of
+`relationships`, we consider the following possibilities. A relationship can
+either be:
+
+1. A **null** relationship which will be represented by a null value:
+
+   ```python
+   {'type': "children",
+    'id': "...",
+    'attributes': { ... },
+    'relationships': {
+        'parent': null,  # <---
+        ...,
+    },
+    'links': { ... }}
+   ```
+
+2. A **singular** relationship which will be represented by an object with both
+   `data` and `links` fields, with the `data` field being a dictionary:
+
+   ```python
+   {'type': "children",
+    'id': "...",
+    'attributes': { ... },
+    'relationships': {
+        'parent': {'data': {'type': "parents", 'id': "..."},     # <---
+                   'links': {'self': "...", 'related': "..."}},  # <---
+        ... ,
+    },
+    'links': { ... }}
+   ```
+
+3. A **plural** relationship which will be represented by an object with a
+   `links` field and either a missing `data` field or a `data` field which is a
+   list:
+
+   ```python
+   {'type': "parents",
+    'id': "...",
+    'attributes': { ... },
+    'relationships': {
+        'children': {'links': {'self': "...", 'related': "..."}},  # <---
+        ...,
+    },
+    'links': { ... }}
+   ```
+
+   or
+
+   ```python
+   {'type': "parents",
+    'id': "...",
+    'attributes': { ... },
+    'relationships': {
+        'children': {'links': {'self': "...", 'related': "..."},    # <---
+                     'data': [{'type': "children", 'id': "..."},    # <---
+                              {'type': "children", 'id': "..."},    # <---
+                              ... ]},                               # <---
+        ... ,
+    },
+    'links': { ... }}
+   ```
+
+This is important because `jsonapi` will make assumptions about the nature
+of relationships based on the existence of these fields.
+
+##### Fetching relationships
+
+The `related` field is meant to host the data of the relationships, **after**
+these have been fetched from the API. Lets revisit the last example and inspect
+the `relationships` and `related` fields:
 
 ```python
+parent = Parent.get("1")
+parent.relationships
+# {'children': {'links': {'self': "/parent/1/relationships/children",
+#                         'related': "/children?filter[parent]=1"}}}
+parent.related
+# {}
+
+child = Child.get("1")
+child.relationships
+# {'parent': {'data': {'type': "parents", 'id': "1"},
+#             'links': {'self': "/children/1/relationships/parent",
+#                       'related': "/parents/1"}}}
+child.related
+# {parent: <Parent: 1 (Unfetched)>}
+```
+
+As you can see, the _parent→children_ `related` field is empty while the
+_child→parent_ `related` field is prefilled with an "unfetched" Parent
+instance. This happens becaue the first one is a _plural_ relationship while
+the second is a _singular_ relationship. Unfetched means that we only know its
+`id` so far. In both cases, we don't know any meaningful data about the
+relationships yet.
+
+In order to fetch the related data, you need to call `.fetch()` with the names
+of the relationships you want to fetch:
+
+```python
+child.related
+# {parent: <Parent: 1 (Unfetched)>}
+(child.related['parent'].id,
+ child.related['parent'].attributes,
+ child.related['parent'].relationships)
+# ("1", {}, {})
+
 child.fetch('parent')  # Now `related['parent']` has all the information
+child.related
+# {parent: <Parent: 1>}
 (child.related['parent'].id,
  child.related['parent'].attributes,
  child.related['parent'].relationships)
@@ -507,6 +537,31 @@ child.parent.name  # No need to fetch the parent
 children = Child.list().include('parent')
 [child.parent.name for child in children]  # No need to fetch the parents
 # ["Zeus", "Zeus", ...]
+```
+
+In case of a plural relationships with a list `data` field, if the response
+supplies the related items in the `included` section, these too will be
+prefilled.
+
+```python
+parent = Parent.get("1", include=['children'])
+
+# Assuming the response looks like:
+# {'data': {'type': "parents",
+#           'id': "1",
+#           'attributes': ...,
+#           'relationships': {'children': {'data': [{'type': "children", 'id': "1"},
+#                                                   {'type': "children", 'id': "2"}],
+#                                          'links': ...}}},
+#  'included': [{'type': "children",
+#                'id': "1",
+#                'attributes': {'name': "Hercules"}},
+#               {'type': "children",
+#                'id': "2",
+#                'attributes': {'name': "Achilles"}}]}
+
+[child.name for child in parent.children]  # No need to fetch
+# ["Hercules", "Achilles"]
 ```
 
 #### Getting single resource objects using filters

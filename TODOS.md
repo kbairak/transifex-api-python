@@ -2,17 +2,21 @@
 
 - [ ] Increase test coverage
 
-- [ ] Plural relationships can have a `data` field that is a list
-
 - [ ] Make python 2/3 cross-compatible
-
-- [ ] Handle 204 no content
 
 # Maybe not after all:
 
+- [ ] Support magic handling of arguments in `__setattr__`
+
 - [ ] Read openapi spec to prefill filters somehow
 
-- [ ] Standardise how the code figures out the nature of JSON objects (whether
+# DONE:
+
+- [x] Handle 204 no content
+
+- [x] Plural relationships can have a `data` field that is a list
+
+- [x] Standardise how the code figures out the nature of JSON objects (whether
   they're singular/plural relationships, API responses etc)
 
   Example:
@@ -35,8 +39,6 @@
   def is_plural_relationship(obj):
       return not has_data(obj) and has_links(obj)
   ```
-
-# DONE:
 
 - [x] Collection URLs can be overriden with a class-variable
 

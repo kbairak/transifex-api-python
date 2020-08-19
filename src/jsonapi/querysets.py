@@ -4,7 +4,7 @@ import urllib
 from .exceptions import DoesNotExist, MultipleObjectsReturned
 
 
-class Queryset(collections.abc.Sequence):
+class Queryset(collections.abc.MutableSequence):
     def __init__(self, API, url, params=None):
         if params is None:
             params = {}
@@ -84,6 +84,15 @@ class Queryset(collections.abc.Sequence):
 
     def __len__(self):
         return len(self.data)
+
+    def __setitem__(self, index, value):
+        self.data[index] = value
+
+    def __delitem__(self, index):
+        del self.data[index]
+
+    def insert(self, index, value):
+        self.data.insert(index, value)
 
     def __repr__(self):
         return repr(self.data)
@@ -177,9 +186,14 @@ class Queryset(collections.abc.Sequence):
         params.update(kwargs)
         return self.__class__(self.API, self._url, params)
 
-    def get(self):
-        if len(self) == 0:
+    def get(self, **filters):
+        if filters:
+            qs = self.filter(**filters)
+        else:
+            qs = self
+
+        if len(qs) == 0:
             raise DoesNotExist()
-        if len(self) > 1:
-            raise MultipleObjectsReturned(len(self))
-        return self[0]
+        if len(qs) > 1:
+            raise MultipleObjectsReturned(len(qs))
+        return qs[0]

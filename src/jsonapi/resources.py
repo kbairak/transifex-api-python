@@ -4,6 +4,9 @@ from copy import deepcopy
 import requests
 
 from .querysets import Queryset
+from .utils import (has_data, has_links, is_list, is_null, is_queryset,
+                    is_related, is_related_list, is_resource,
+                    is_resource_identifier)
 
 
 class Resource:
@@ -34,7 +37,10 @@ class Resource:
             # - `Parent(user.relationships['parent'])`
             # - `Parent({'data': {'type': "parents", 'id': "1"}})`
             if 'data' in data:
+                included = data.get('included')
                 data = data['data']
+                if included is not None and 'included' not in data:
+                    data['included'] = included
             self._overwrite(**data)
         else:
             self._overwrite(**kwargs)
@@ -60,16 +66,7 @@ class Resource:
         if relationships is None:
             relationships = {}
         for key, value in kwargs.items():
-            is_resource = isinstance(value, Resource)
-            is_dict = isinstance(value, collections.abc.Mapping)
-            is_resource_identifier = (is_dict and
-                                      {'type', 'id'} <= set(value.keys()))
-            is_relationship = (is_dict and
-                               set(value.keys()) == {'data'} and
-                               isinstance(value['data'],
-                                          collections.abc.Mapping) and
-                               {'type', 'id'} <= set(value['data'].keys()))
-            if is_resource or is_resource_identifier or is_relationship:
+            if is_related(value) or is_related_list(value):
                 relationships[key] = value
             else:
                 attributes[key] = value
@@ -90,20 +87,27 @@ class Resource:
         self.relationships, self.related = {}, {}
         for key, value in relationships.items():
             self._set_relationship(key, value)
-            if (self.relationships[key] is None or
-                    'data' in self.relationships[key]):
-                # Singular relationship
+            relationship = self.relationships[key]
+            if is_null(relationship) or has_data(relationship):
                 self.set_related(key, value)
 
         if included is not None:
             included = {(item['type'], item['id']): item for item in included}
             for relationship_name, relationship in self.relationships.items():
-                if relationship is None or 'data' not in relationship:
+                if is_null(relationship) or not has_data(relationship):
                     continue
-                key = (relationship['data']['type'],
-                       relationship['data']['id'])
-                if key in included:
-                    self.set_related(relationship_name, included[key])
+                if is_list(relationship['data']):  # Plural with data
+                    new_items = [
+                        included.get((r['type'], r['id']),
+                                     self.related[relationship_name][i])
+                        for i, r in enumerate(relationship['data'])
+                    ]
+                    self.set_related(relationship_name, new_items)
+                else:  # Singular
+                    key = (relationship['data']['type'],
+                           relationship['data']['id'])
+                    if key in included:
+                        self.set_related(relationship_name, included[key])
 
     def _set_relationship(self, key, value):
         """ Set 'value' as 'key' relationship. For value we accept:
@@ -111,19 +115,32 @@ class Resource:
             - A Resource object
             - A relationship (a dict with either 'data', 'links' or both)
             - A resource identifier (a dict with 'type' and 'id')
+            - A list of a combination of the above
+            - A dict with a 'data' field which is a list of a combination of
+              the above
             - None
 
             Regardless, in the end `self.relationships` will resemble an API
             response's relationships.
         """
 
-        if isinstance(value, Resource):
+        if is_related_list(value):
+            if has_data(value):
+                data = value['data']
+            else:
+                data = value
+            self.relationships[key] = {'data': [
+                self.API.as_resource(item).as_resource_identifier()
+                for item in data
+            ]}
+            if has_links(value):
+                self.relationships[key]['links'] = value['links']
+        elif is_resource(value):
             self.relationships[key] = value.as_relationship()
         else:
-            if value is not None and set(value.keys()) == {'type', 'id'}:
-                # Resource identifier was passed
+            if not is_null(value) and is_resource_identifier(value):
                 value = {'data': value}
-            if value is None or 'data' in value or 'links' in value:
+            if is_null(value) or has_data(value) or has_links(value):
                 self.relationships[key] = value
             else:
                 raise ValueError(f"Invalid type '{value}' for relationship "
@@ -138,6 +155,9 @@ class Resource:
             - A full API response of a Resource object
             - A relationship (a dict with a 'data' field)
             - A resource identifier (a dict with 'type' and 'id')
+            - A list of a combination of the above
+            - A dict with a 'data' field with a list of a combination of the
+              above as value
             - None
 
             Regardless, in the end `self.related[key]` will be a Resource
@@ -147,28 +167,35 @@ class Resource:
         if key not in self.relationships:
             raise ValueError(f"Cannot change relationship '{key}' because "
                              f"it's not an existing relationship.")
-        if (self.relationships[key] is not None and
-                'data' not in self.relationships[key]):
-            raise ValueError(f"Cannot change relationship '{key}' because "
-                             f"it's a plural relationship. Use '.add()', "
-                             f"'.remove()' or '.reset()' instead.")
 
-        value = self.API.as_resource(value)
-        from_null_to_not_null = (self.relationships[key] is None and
-                                 value is not None)
-        from_not_null_to_null = (self.relationships[key] is not None and
-                                 value is None)
-        data_changed = (
-            self.relationships[key] is not None and
-            value is not None and
-            self.relationships[key]['data'] != value.as_resource_identifier()
-        )
-        if from_null_to_not_null or from_not_null_to_null or data_changed:
-            if value is None:
-                self.relationships[key] = None
-            else:
-                self.relationships[key] = value.as_relationship()
-        self.related[key] = value
+        relationship = self.relationships[key]
+
+        if is_list(value) or (has_data(value) and is_list(value['data'])):
+            # Plural
+            if has_data(value):
+                value = value['data']
+            self.related[key] = Queryset.from_data(self.API, {'data': []})
+            for item in value:
+                self.related[key].append(self.API.as_resource(item))
+            new_relationship = [item.as_resource_identifier()
+                                for item in self.related[key]]
+            if new_relationship != relationship['data']:
+                relationship['data'] = new_relationship
+        else:
+            # Singular
+            value = self.API.as_resource(value)
+            null_to_not_null = is_null(relationship) and not is_null(value)
+            not_null_to_null = not is_null(relationship) and is_null(value)
+            data_changed = (not is_null(relationship) and
+                            not is_null(value) and
+                            (relationship['data'] !=
+                             value.as_resource_identifier()))
+            if null_to_not_null or not_null_to_null or data_changed:
+                if value is None:
+                    self.relationships[key] = None
+                else:
+                    self.relationships[key] = value.as_relationship()
+            self.related[key] = value
 
     @classmethod
     def as_resource(cls, data):
@@ -224,14 +251,13 @@ class Resource:
 
     # Fetching
     def reload(self, *, include=None):
-        """ Fetch fresh data from the server for the object.  """
+        """ Fetch fresh data from the server for the object. """
 
         params = None
         if include is not None:
             params = {'include': ','.join(include)}
-        response_body = self.API.request('get',
-                                         self.get_item_url(),
-                                         params=params)
+        url = self.links.get('self', self.get_item_url())
+        response_body = self.API.request('get', url, params=params)
         if (isinstance(response_body, requests.Response) and
                 response_body.status_code == 303):
             self._overwrite(redirect=response_body.headers['Location'])
@@ -248,10 +274,10 @@ class Resource:
             instance.reload(include=include)
             return instance
         else:
-            result = cls.filter(**filters)
+            result = cls.list()
             if include is not None:
                 result = result.include(*include)
-            return result.get()
+            return result.get(**filters)
 
     def fetch(self, *relationship_names, force=False):
         """ Fetches 'relationship', if it wasn't included when fetching 'self';
@@ -292,21 +318,22 @@ class Resource:
         for relationship_name in relationship_names:
             relationship = self.relationships[relationship_name]
 
-            if relationship is None:
+            if is_null(relationship):
                 continue
 
             is_singular_fetched = (
-                isinstance(self.related.get(relationship_name), Resource) and
+                is_resource(self.related.get(relationship_name)) and
                 (self.related[relationship_name].attributes or
                  self.related[relationship_name].relationships)
             )
-            is_plural_fetched = isinstance(self.related.get(relationship_name),
-                                           Queryset)
+            is_plural_fetched = is_queryset(self.related.
+                                            get(relationship_name))
+
             if (is_singular_fetched or is_plural_fetched) and not force:
                 # Has been fetched already
                 continue
 
-            if 'data' in relationship:
+            if has_data(relationship) and not is_list(relationship['data']):
                 # Singular relationship
                 self.related[relationship_name].reload()
             else:
@@ -388,12 +415,38 @@ class Resource:
                                          json={'data': payload})
         self._post_save(response_body)
 
+    def _generate_data_for_saving(self, *fields):
+        result = {}
+        editable_fields = fields or self.EDITABLE
+        if editable_fields is not None:
+            for field in editable_fields:
+                if field in self.attributes:
+                    result.setdefault('attributes', {})[field] =\
+                        self.attributes[field]
+                elif field in self.relationships:
+                    result.setdefault('relationships', {})[field] =\
+                        self.relationships[field]
+                else:
+                    raise ValueError(f"Unknown field '{field}'")
+        else:
+            if self.attributes:
+                result['attributes'] = self.attributes
+            if self.relationships:
+                result['relationships'] = self.relationships
+        return result
+
     def _post_save(self, response_body):
+        if (isinstance(response_body, requests.Response) and
+                response_body.status_code in (202, 204)):
+            # Success, but the server did not return any new data so our object
+            # is considered sufficiently populated with data
+            return
+
         data = response_body['data']
 
         related = deepcopy(self.related)
         for relationship_name, related_instance in list(related.items()):
-            if isinstance(related_instance, Queryset):
+            if is_queryset(related_instance):
                 continue  # Plural relationship
 
             try:
@@ -417,25 +470,9 @@ class Resource:
         relationships = data.pop('relationships', {})
         relationships.update(related)
 
-        self._overwrite(relationships=relationships, **data)
-
-    def _generate_data_for_saving(self, *fields):
-        result = {}
-        editable_fields = fields or self.EDITABLE
-        if editable_fields is not None:
-            for field in editable_fields:
-                if field in self.attributes:
-                    result.setdefault('attributes', {})[field] =\
-                        self.attributes[field]
-                elif field in self.relationships:
-                    result.setdefault('relationships', {})[field] =\
-                        self.relationships[field]
-        else:
-            if self.attributes:
-                result['attributes'] = self.attributes
-            if self.relationships:
-                result['relationships'] = self.relationships
-        return result
+        self._overwrite(relationships=relationships,
+                        included=response_body.get('included'),
+                        **data)
 
     @classmethod
     def create(cls, *args, **kwargs):
@@ -635,7 +672,7 @@ class Resource:
 
         for item in items:
             item = cls.as_resource(item)
-            if not isinstance(item, Resource):
+            if not is_resource(item):
                 item = cls(id=item)
             payload.append(item.as_resource_identifier())
 
@@ -680,7 +717,7 @@ class Resource:
 
         payload = []
         for item in items:
-            if isinstance(item, collections.abc.Sequence):
+            if is_list(item):
                 attributes, relationships = item
                 item = cls(attributes=attributes, relationships=relationships)
             else:
@@ -688,14 +725,13 @@ class Resource:
                 if not isinstance(item, Resource):
                     item = cls(attributes=item)
 
-            if item.id is not None:
-                raise ValueError("'id' supplied as part of a new instance")
-
             payload.append({'type': cls.TYPE})
             if item.attributes:
                 payload[-1]['attributes'] = item.attributes
             if item.relationships:
                 payload[-1]['relationships'] = item.relationships
+            if item.id:
+                payload[-1]['id'] = item.id
 
         response_body = cls.API.request('post',
                                         cls.get_collection_url(),
@@ -733,8 +769,7 @@ class Resource:
         payload = []
         for item in items:
 
-            if (isinstance(item, collections.abc.Sequence) and
-                    not isinstance(item, str)):
+            if is_list(item):
                 try:
                     id, attributes, relationships = item
                 except ValueError:
@@ -763,7 +798,7 @@ class Resource:
                                      for key, value in relationships.items()
                                      if key in fields}
 
-            payload.append({'type': cls.TYPE, 'id': item.id})
+            payload.append(item.as_resource_identifier())
             if attributes:
                 payload[-1]['attributes'] = attributes
             if relationships:
@@ -796,6 +831,9 @@ class Resource:
 
         if self.redirect is not None:
             details += " (redirect ready)"
+
+        if not self.attributes and not self.relationships:
+            details += " (Unfetched)"
 
         return f"<{class_name}: {details}>"
 
