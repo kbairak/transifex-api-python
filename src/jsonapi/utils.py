@@ -1,4 +1,4 @@
-from __future__ import unicode_literals
+from __future__ import unicode_literals, absolute_import
 
 import six
 
@@ -10,9 +10,9 @@ def is_resource(value):
     return isinstance(value, Resource)
 
 
-def is_queryset(value):
-    from .querysets import Queryset
-    return isinstance(value, Queryset)
+def is_collection(value):
+    from .collections import Collection
+    return isinstance(value, Collection)
 
 
 def is_dict(value):

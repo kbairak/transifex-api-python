@@ -1,12 +1,12 @@
-from __future__ import unicode_literals
+from __future__ import unicode_literals, absolute_import
 
 from copy import deepcopy
 
 import requests
 
-from .querysets import Queryset
-from .utils import (has_data, has_links, is_dict, is_list, is_null,
-                    is_queryset, is_related, is_related_list, is_resource,
+from .collections import Collection
+from .utils import (has_data, has_links, is_collection, is_dict, is_list,
+                    is_null, is_related, is_related_list, is_resource,
                     is_resource_identifier)
 
 
@@ -175,7 +175,7 @@ class Resource(object):
             # Plural
             if has_data(value):
                 value = value['data']
-            self.related[key] = Queryset.from_data(self.API, {'data': []})
+            self.related[key] = Collection.from_data(self.API, {'data': []})
             for item in value:
                 self.related[key].append(self.API.as_resource(item))
             new_relationship = [item.as_resource_identifier()
@@ -301,7 +301,7 @@ class Resource(object):
                 ...        for child in foo.related['children'].all()])
 
             If only one positional argument is supplied, it will return the
-            related object or queryset:
+            related object or collection:
 
                 >>> print(child.fetch('parent').name)
 
@@ -329,8 +329,8 @@ class Resource(object):
                 (self.related[relationship_name].attributes or
                  self.related[relationship_name].relationships)
             )
-            is_plural_fetched = is_queryset(self.related.
-                                            get(relationship_name))
+            is_plural_fetched = is_collection(self.related.
+                                              get(relationship_name))
 
             if (is_singular_fetched or is_plural_fetched) and not force:
                 # Has been fetched already
@@ -345,7 +345,7 @@ class Resource(object):
                     get('links', {}).\
                     get('related', "/{}/{}/{}".format(self.TYPE, self.id,
                                                       relationship_name))
-                self.related[relationship_name] = Queryset(self.API, url)
+                self.related[relationship_name] = Collection(self.API, url)
 
         if len(relationship_names) == 1:
             # This way you can do `project.fetch('languages').filter(...)`
@@ -353,21 +353,21 @@ class Resource(object):
 
     @classmethod
     def list(cls):
-        return Queryset(cls.API, "/{}".format(cls.TYPE))
+        return Collection(cls.API, "/{}".format(cls.TYPE))
 
-    def _queryset_method(method):
+    def _collection_method(method):
         def _method(cls, *args, **kwargs):
             return getattr(cls.list(), method)(*args, **kwargs)
         return classmethod(_method)
 
-    filter = _queryset_method('filter')
-    page = _queryset_method('page')
-    include = _queryset_method('include')
-    sort = _queryset_method('sort')
-    fields = _queryset_method('fields')
-    extra = _queryset_method('extra')
-    all_pages = _queryset_method('all_pages')
-    all = _queryset_method('all')
+    filter = _collection_method('filter')
+    page = _collection_method('page')
+    include = _collection_method('include')
+    sort = _collection_method('sort')
+    fields = _collection_method('fields')
+    extra = _collection_method('extra')
+    all_pages = _collection_method('all_pages')
+    all = _collection_method('all')
 
     # Editing
     def save(self, *fields, **kwargs):
@@ -449,7 +449,7 @@ class Resource(object):
 
         related = deepcopy(self.related)
         for relationship_name, related_instance in list(related.items()):
-            if is_queryset(related_instance):
+            if is_collection(related_instance):
                 continue  # Plural relationship
 
             try:
@@ -502,7 +502,7 @@ class Resource(object):
             raise ValueError("Cannot follow a non-redirect response")
         response_body = self.API.request('get', self.redirect)
         if is_list(response_body['data']):
-            return Queryset.from_data(self.API, response_body)
+            return Collection.from_data(self.API, response_body)
         elif is_dict(response_body['data']):
             return self.API.new(response_body)
         else:  # Unreachable code
@@ -741,7 +741,7 @@ class Resource(object):
                                         cls.get_collection_url(),
                                         json={'data': payload},
                                         bulk=True)
-        return Queryset.from_data(cls.API, response_body)
+        return Collection.from_data(cls.API, response_body)
 
     @classmethod
     def bulk_update(cls, items, fields=None):
@@ -815,7 +815,7 @@ class Resource(object):
                                         cls.get_collection_url(),
                                         json={'data': payload},
                                         bulk=True)
-        return Queryset.from_data(cls.API, response_body)
+        return Collection.from_data(cls.API, response_body)
 
     # Utils
     def __eq__(self, other):

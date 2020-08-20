@@ -1,9 +1,9 @@
-from __future__ import unicode_literals
+from __future__ import unicode_literals, absolute_import
 
 import responses
 
 import jsonapi
-from jsonapi.querysets import Queryset
+from jsonapi.collections import Collection
 
 from .constants import host
 from .payloads import Payloads
@@ -25,36 +25,36 @@ payloads = Payloads('items')
 
 
 @responses.activate
-def test_queryset():
+def test_collection():
     responses.add(responses.GET, "{}/items".format(host),
                   json={'data': payloads[1:4]})
 
-    queryset = Queryset(_api, '/items')
-    list(queryset)
+    collection = Collection(_api, '/items')
+    list(collection)
 
-    assert len(queryset) == 3
-    assert isinstance(queryset[0], Item)
-    assert queryset[1].id == "2"
-    assert queryset[2].name == "item 3"
+    assert len(collection) == 3
+    assert isinstance(collection[0], Item)
+    assert collection[1].id == "2"
+    assert collection[2].name == "item 3"
 
-    assert not queryset.has_next()
-    assert not queryset.has_previous()
+    assert not collection.has_next()
+    assert not collection.has_previous()
 
-    assert list(queryset) == list(queryset.all())
+    assert list(collection) == list(collection.all())
 
 
 def test_from_data():
-    queryset = Queryset.from_data(_api, {'data': payloads[1:4]})
+    collection = Collection.from_data(_api, {'data': payloads[1:4]})
 
-    assert len(queryset) == 3
-    assert isinstance(queryset[0], Item)
-    assert queryset[1].id == "2"
-    assert queryset[2].name == "item 3"
+    assert len(collection) == 3
+    assert isinstance(collection[0], Item)
+    assert collection[1].id == "2"
+    assert collection[2].name == "item 3"
 
-    assert not queryset.has_next()
-    assert not queryset.has_previous()
+    assert not collection.has_next()
+    assert not collection.has_previous()
 
-    assert list(queryset) == list(queryset.all())
+    assert list(collection) == list(collection.all())
 
 
 @responses.activate
@@ -63,7 +63,7 @@ def test_pagination():
                   json={'data': payloads[4:7],
                         'links': {'previous': "/items?page=1"}})
 
-    first_page = Queryset.from_data(_api,
+    first_page = Collection.from_data(_api,
                                     {'data': payloads[1:4],
                                      'links': {'next': "/items?page=2"}})
     assert first_page.has_next()
@@ -89,17 +89,17 @@ def test_pagination():
 def test_all():
     responses.add(responses.GET, "{}/items".format(host),
                   json={'data': payloads[1:4]})
-    queryset = Item.list()
+    collection = Item.list()
 
-    assert len(queryset) == 3
-    assert isinstance(queryset[0], Item)
-    assert queryset[1].id == "2"
-    assert queryset[2].name == "item 3"
+    assert len(collection) == 3
+    assert isinstance(collection[0], Item)
+    assert collection[1].id == "2"
+    assert collection[2].name == "item 3"
 
-    assert not queryset.has_next()
-    assert not queryset.has_previous()
+    assert not collection.has_next()
+    assert not collection.has_previous()
 
-    assert list(queryset) == list(queryset.all())
+    assert list(collection) == list(collection.all())
 
 
 @responses.activate

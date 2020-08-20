@@ -1,10 +1,10 @@
-from __future__ import unicode_literals
+from __future__ import unicode_literals, absolute_import
 
 from .compat import abc, parse_qs, urlparse
 from .exceptions import DoesNotExist, MultipleObjectsReturned
 
 
-class Queryset(abc.MutableSequence):
+class Collection(abc.MutableSequence):
     def __init__(self, API, url, params=None):
         if params is None:
             params = {}
