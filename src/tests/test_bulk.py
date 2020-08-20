@@ -1,7 +1,10 @@
+from __future__ import unicode_literals
+
 import json
 
-import jsonapi
 import responses
+
+import jsonapi
 
 from .constants import host
 from .payloads import Payloads
@@ -19,7 +22,7 @@ payloads = Payloads('bulk_items')
 
 @responses.activate
 def test_bulk_delete():
-    responses.add(responses.DELETE, f"{host}/bulk_items")
+    responses.add(responses.DELETE, "{}/bulk_items".format(host))
 
     items = [BulkItem(payload) for payload in payloads[1:6]]
     BulkItem.bulk_delete([items[0],
@@ -31,7 +34,7 @@ def test_bulk_delete():
     call = responses.calls[0]
     assert (call.request.headers['Content-Type'] ==
             'application/vnd.api+json;profile="bulk"')
-    assert (json.loads(call.request.body)['data'] ==
+    assert (json.loads(call.request.body.decode())['data'] ==
             [{'type': "bulk_items", 'id': str(i)} for i in range(1, 5)])
 
 
@@ -39,8 +42,8 @@ def test_bulk_delete():
 def test_bulk_create():
     response_payload = payloads[1:5]
     for item, when in zip(response_payload, range(1, 5)):
-        item['attributes']['created'] = f"now + {when}"
-    responses.add(responses.POST, f"{host}/bulk_items",
+        item['attributes']['created'] = "now + {}".format(when)
+    responses.add(responses.POST, "{}/bulk_items".format(host),
                   json={'data': response_payload})
 
     result = BulkItem.bulk_create([
@@ -54,9 +57,9 @@ def test_bulk_create():
     call = responses.calls[0]
     assert (call.request.headers['Content-Type'] ==
             'application/vnd.api+json;profile="bulk"')
-    assert (json.loads(call.request.body) ==
+    assert (json.loads(call.request.body.decode()) ==
             {'data': [{'type': "bulk_items",
-                       'attributes': {'name': f"bulk_item {i}"}}
+                       'attributes': {'name': "bulk_item {}".format(i)}}
                       for i in range(1, 5)]})
 
     assert isinstance(result[0], BulkItem)
@@ -65,17 +68,21 @@ def test_bulk_create():
 
     for i in range(4):
         assert result[i].id == str(i + 1)
-        assert result[i].name == result[i].attributes['name'] == f"bulk_item {i + 1}"
-        assert result[i].created == result[i].attributes['created'] == f"now + {i + 1}"
+        assert (result[i].name ==
+                result[i].attributes['name'] ==
+                "bulk_item {}".format(i + 1))
+        assert (result[i].created ==
+                result[i].attributes['created'] ==
+                "now + {}".format(i + 1))
 
 
 @responses.activate
 def test_bulk_update():
     response_payload = payloads[1:6]
     for item, when in zip(response_payload, range(1, 6)):
-        item['attributes'].update({'last_update': f"now + {when}",
-                                   'name': f"modified name {when}"})
-    responses.add(responses.PATCH, f"{host}/bulk_items",
+        item['attributes'].update({'last_update': "now + {}".format(when),
+                                   'name': "modified name {}".format(when)})
+    responses.add(responses.PATCH, "{}/bulk_items".format(host),
                   json={'data': response_payload})
 
     result = BulkItem.bulk_update([
@@ -90,10 +97,10 @@ def test_bulk_update():
     call = responses.calls[0]
     assert (call.request.headers['Content-Type'] ==
             'application/vnd.api+json;profile="bulk"')
-    assert (json.loads(call.request.body) ==
+    assert (json.loads(call.request.body.decode()) ==
             {'data': ([{'type': "bulk_items",
                         'id': str(i),
-                        'attributes': {'name': f"modified name {i}"}}
+                        'attributes': {'name': "modified name {}".format(i)}}
                        for i in range(1, 5)] +
                       [{'type': "bulk_items", 'id': "5"}])})
 
@@ -106,7 +113,7 @@ def test_bulk_update():
         assert result[i].id == str(i + 1)
         assert (result[i].name ==
                 result[i].attributes['name'] ==
-                f"modified name {i + 1}")
+                "modified name {}".format(i + 1))
         assert (result[i].last_update ==
                 result[i].attributes['last_update'] ==
-                f"now + {i + 1}")
+                "now + {}".format(i + 1))

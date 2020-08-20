@@ -27,7 +27,7 @@ A python SDK for the [Transifex API (v3)](https://transifex.github.io/openapi/)
       * [Bulk operations](#bulk-operations)
       * [Form uploads, redirects](#form-uploads-redirects)
 * [transifex_api usage](#transifex_api-usage)
-* [Tests](#tests)
+* [Testing](#testing)
 
 <!-- Added by: kbairak, at: Wed 19 Aug 2020 04:17:42 PM EEST -->
 
@@ -1026,7 +1026,7 @@ translation.save('strings', 'reviewed')
 ```
 
 
-## Tests
+## Testing
 
 To run the tests:
 
@@ -1036,3 +1036,17 @@ pip install -e .
 pip install -r requirements/testing.txt
 make test
 ```
+
+There are several variations on test commands, most targeted towards active
+development:
+
+
+- `make test`: Run tests in multiple python versions using
+  [tox](https://tox.readthedocs.io/en/latest/)
+- `make covtest`: Display coverage information using
+  [pytest-cov](https://github.com/pytest-dev/pytest-cov)
+- `make debugtest`: Disable screen capture (with `-s` option to pytest) so that
+  you can invoke a debugger while the tests are running
+- `make watchtest`: Invoke the tests with
+  [pytest-watch](https://github.com/joeyespo/pytest-watch) so that they rerun
+  every time a source python file in the repository changes

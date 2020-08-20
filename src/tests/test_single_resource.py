@@ -1,8 +1,11 @@
+from __future__ import unicode_literals
+
 import json
 from copy import deepcopy
 
-import jsonapi
 import responses
+
+import jsonapi
 
 from .constants import host
 
@@ -73,7 +76,8 @@ def test_reload():
 
     new_payload = deepcopy(SIMPLE_PAYLOAD)
     new_payload['attributes']['hello'] = "WORLD"
-    responses.add(responses.GET, f"{host}/foos/1", json={'data': new_payload})
+    responses.add(responses.GET, "{}/foos/1".format(host),
+                  json={'data': new_payload})
 
     foo.reload()
     assert foo.hello == "WORLD"
@@ -82,7 +86,7 @@ def test_reload():
 
 @responses.activate
 def test_get_one():
-    responses.add(responses.GET, f"{host}/foos/1",
+    responses.add(responses.GET, "{}/foos/1".format(host),
                   json={'data': SIMPLE_PAYLOAD})
 
     foo = Foo.get('1')
@@ -94,19 +98,10 @@ def test_get_one():
 
     make_simple_assertions(foo)
 
-    foo = _api.get('1', type="foos")
-
-    assert len(responses.calls) == 2
-    call = responses.calls[0]
-    assert call.request.headers['Content-Type'] == "application/vnd.api+json"
-    assert call.request.headers['Authorization'] == "Bearer test_api_key"
-
-    make_simple_assertions(foo)
-
 
 @responses.activate
 def test_get_one_with_filters():
-    responses.add(responses.GET, f"{host}/foos?filter[hello]=world",
+    responses.add(responses.GET, "{}/foos?filter[hello]=world".format(host),
                   json={'data': [SIMPLE_PAYLOAD]}, match_querystring=True)
 
     foo = Foo.get(hello="world")
@@ -123,7 +118,7 @@ def test_get_one_with_filters():
 def test_get_one_with_include():
     responses.add(
         responses.GET,
-        f"{host}/foos/1",
+        "{}/foos/1".format(host),
         json={'data': {'type': "foos",
                        'id': "1",
                        'attributes': {'name': "Foo1"},
@@ -159,7 +154,7 @@ def test_save_existing():
 
     new_payload = deepcopy(SIMPLE_PAYLOAD)
     new_payload['attributes']['hello'] = "WORLD"
-    responses.add(responses.PATCH, f"{host}/foos/1",
+    responses.add(responses.PATCH, "{}/foos/1".format(host),
                   json={'data': new_payload})
 
     foo.hello = "WORLD"
@@ -167,23 +162,22 @@ def test_save_existing():
 
     assert len(responses.calls) == 1
     call = responses.calls[0]
-    assert (call.request.body.decode('utf8') ==
-            json.dumps({'data': new_payload}))
+    assert json.loads(call.request.body.decode()) == {'data': new_payload}
 
     foo.hello = "something else"
     foo.save(hello="WORLD")
 
     assert len(responses.calls) == 2
     call = responses.calls[1]
-    assert (call.request.body.decode('utf8') ==
-            json.dumps({'data': new_payload}))
+    assert json.loads(call.request.body.decode()) == {'data': new_payload}
 
 
 @responses.activate
 def test_save_new():
     new_payload = deepcopy(SIMPLE_PAYLOAD)
     new_payload['attributes']['created'] = "NOW!!!"
-    responses.add(responses.POST, f"{host}/foos", json={'data': new_payload})
+    responses.add(responses.POST, "{}/foos".format(host),
+                  json={'data': new_payload})
 
     foo = Foo(attributes={'hello': "world"})
     foo.save()
@@ -197,7 +191,8 @@ def test_save_new():
 def test_create():
     new_payload = deepcopy(SIMPLE_PAYLOAD)
     new_payload['attributes']['created'] = "NOW!!!"
-    responses.add(responses.POST, f"{host}/foos", json={'data': new_payload})
+    responses.add(responses.POST, "{}/foos".format(host),
+                  json={'data': new_payload})
 
     foo = Foo.create(attributes={'hello': "world"})
 
@@ -209,12 +204,13 @@ def test_create():
 def test_create_with_id():
     new_payload = deepcopy(SIMPLE_PAYLOAD)
     new_payload['attributes']['created'] = "NOW!!!"
-    responses.add(responses.POST, f"{host}/foos", json={'data': new_payload})
+    responses.add(responses.POST, "{}/foos".format(host),
+                  json={'data': new_payload})
 
     foo = Foo.create(id="2", attributes={'hello': "world"})
 
     assert len(responses.calls) == 1
-    assert json.loads(responses.calls[0].request.body) == {'data': {
+    assert json.loads(responses.calls[0].request.body.decode()) == {'data': {
         'type': "foos",
         'id': "2",
         'attributes': {'hello': "world"},
@@ -226,7 +222,7 @@ def test_create_with_id():
 
 @responses.activate
 def test_delete():
-    responses.add(responses.DELETE, f"{host}/foos/1")
+    responses.add(responses.DELETE, "{}/foos/1".format(host))
 
     foo = Foo(SIMPLE_PAYLOAD)
     foo.delete()

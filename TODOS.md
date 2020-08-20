@@ -2,8 +2,6 @@
 
 - [ ] Increase test coverage
 
-- [ ] Make python 2/3 cross-compatible
-
 # Maybe not after all:
 
 - [ ] Support magic handling of arguments in `__setattr__`
@@ -11,6 +9,8 @@
 - [ ] Read openapi spec to prefill filters somehow
 
 # DONE:
+
+- [x] Make python 2/3 cross-compatible
 
 - [x] Handle 204 no content
 

@@ -1,35 +1,38 @@
+from __future__ import unicode_literals
+
 import datetime
 
 
-class BearerAuthentication:
+class BearerAuthentication(object):
     def __init__(self, api_key):
         self.api_key = api_key
 
     def __call__(self):
-        return {'Authorization': f"Bearer {self.api_key}"}
+        return {'Authorization': "Bearer {}".format(self.api_key)}
 
 
-class ULFAuthentication:
+class ULFAuthentication(object):
     def __init__(self, public, secret=None):
         self.public = public
         self.secret = secret
 
     def __call__(self):
         if self.secret is None:
-            return {'Authorization': f"ULF {self.public}"}
+            return {'Authorization': "ULF {}".format(self.public)}
         else:
-            return {'Authorization': f"ULF {self.public}:{self.secret}"}
+            return {'Authorization': ("ULF {}:{}".
+                                      format(self.public, self.secret))}
 
 
-class JWTAuthentication:
+class JWTAuthentication(object):
     """
         Usage:
 
             >>> from jsonapi import setup
             >>> setup(host="https://some.host.com",
             ...       auth=JWTAuthentication(payload={'username': "username"},
-            ...                               secret="SHARED_SECRET",
-            ...                               duration=300))
+            ...                              secret="SHARED_SECRET",
+            ...                              duration=300))
     """
 
     def __init__(self, payload, secret, duration, algorithm="HS256",
@@ -54,4 +57,4 @@ class JWTAuthentication:
         token = jwt.encode(payload=payload,
                            secret=self.secret,
                            algorithm=self.algorithm)
-        return {'Authorization': f"JWT {token}"}
+        return {'Authorization': "JWT {}".format(token)}

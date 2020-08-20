@@ -1,12 +1,13 @@
-import json
+from __future__ import unicode_literals
 
 import requests
 
 from .auth import BearerAuthentication
+from .compat import JSONDecodeError
 from .exceptions import JsonApiException
 
 
-class JsonApi:
+class JsonApi(object):
     """ Inteface for a new {json:api} API.
 
         - host: The URL of the API
@@ -53,7 +54,7 @@ class JsonApi:
         return klass
 
     #                 Required args
-    def request(self, method, url, *,
+    def request(self, method, url,
                 # Not passed to requests, used to determine Content-Type
                 bulk=False,
                 # Forwarded to requests
@@ -61,7 +62,7 @@ class JsonApi:
                 allow_redirects=False,
                 **kwargs):
         if url.startswith('/'):
-            url = f"{self.host}{url}"
+            url = "{}{}".format(self.host, url)
 
         if bulk:
             content_type = 'application/vnd.api+json;profile="bulk"'
@@ -93,11 +94,11 @@ class JsonApi:
                 raise exc
         try:
             return response.json()
-        except json.JSONDecodeError:
+        except JSONDecodeError:
             # Most likely empty response when deleting
             return response
 
-    def new(self, data=None, *, type=None, **kwargs):
+    def new(self, data=None, type=None, **kwargs):
         """ Return a new resource instance, using the appropriate Resource
             subclass, provided that it has been registered with this API
             instance.
@@ -130,22 +131,3 @@ class JsonApi:
             return self.new(data)
         except Exception:
             return data
-
-    def get(self, id, type, include=None):
-        """ Get a resource object by its ID and type. Will use the appropriate
-            Resource subclass, provided it has been registered with this API
-            instance.
-
-                >>> _api = jsonapi.JsonApi(...)
-                >>> @_api.register
-                ... class Foo(jsonapi.Resource):
-                ...     TYPE = "foos"
-                >>> obj = _api.get(id="1", type="foos")
-
-                >>> isinstance(obj, Foo)
-                <<< True
-        """
-
-        instance = self.new(type=type, id=id)
-        instance.reload(include=include)
-        return instance

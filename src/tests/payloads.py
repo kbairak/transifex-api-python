@@ -1,4 +1,9 @@
-class Payloads:
+from __future__ import unicode_literals
+
+from copy import deepcopy
+
+
+class Payloads(object):
     """ Usage:
 
         >>> payloads = Payloads('items')
@@ -18,7 +23,7 @@ class Payloads:
 
         self.plural_type = plural_type
         self.singular_type = singular_type
-        self.extra = extra
+        self.extra = deepcopy(extra)
 
     def __getitem__(self, index):
         if isinstance(index, slice):
@@ -30,6 +35,9 @@ class Payloads:
             return self._payload(index)
 
     def _payload(self, i):
-        return {'type': self.plural_type, 'id': str(i),
-                'attributes': {'name': f"{self.singular_type} {i}"},
-                **self.extra}
+        result = {'type': self.plural_type,
+                  'id': str(i),
+                  'attributes': {'name': ("{} {}".
+                                          format(self.singular_type, i))}}
+        result.update(self.extra)
+        return result

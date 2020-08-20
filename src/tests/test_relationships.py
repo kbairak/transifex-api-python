@@ -1,8 +1,11 @@
+from __future__ import unicode_literals
+
 import json
 from copy import deepcopy
 
-import jsonapi
 import responses
+
+import jsonapi
 
 from .constants import host
 from .payloads import Payloads
@@ -39,7 +42,7 @@ parent_payloads = Payloads(
 
 @responses.activate
 def test_initialization():
-    responses.add(responses.GET, f"{host}/parents/1",
+    responses.add(responses.GET, "{}/parents/1".format(host),
                   json={'data': {'type': "parents", 'id': "1"}})
     parents = [Parent.get('1'),
                Parent(id='1'),
@@ -60,7 +63,7 @@ def test_initialization():
 
 @responses.activate
 def test_singular_fetch():
-    responses.add(responses.GET, f"{host}/parents/1",
+    responses.add(responses.GET, "{}/parents/1".format(host),
                   json={'data': parent_payloads[1]})
 
     child = Child(child_payloads[1])
@@ -86,11 +89,11 @@ def test_singular_fetch():
 
 @responses.activate
 def test_fetch_plural():
-    responses.add(responses.GET, f"{host}/parents/1/children",
+    responses.add(responses.GET, "{}/parents/1/children".format(host),
                   json={'data': child_payloads[1:4],
                         'links': {'next': "/parents/1/children?page=2"}},
                   match_querystring=True)
-    responses.add(responses.GET, f"{host}/parents/1/children?page=2",
+    responses.add(responses.GET, "{}/parents/1/children?page=2".format(host),
                   json={'data': child_payloads[4:7],
                         'links': {'previous': "/parents/1/children?page=1"}},
                   match_querystring=True)
@@ -120,7 +123,7 @@ def test_change_parent_with_save():
     relationship['links']['related'] = relationship['links']['related'].\
         replace('1', '2')
 
-    responses.add(responses.PATCH, f"{host}/children/1",
+    responses.add(responses.PATCH, "{}/children/1".format(host),
                   json={'data': response_body})
 
     child = Child(child_payloads[1])
@@ -133,14 +136,15 @@ def test_change_parent_with_save():
 
     assert len(responses.calls) == 1
     call = responses.calls[0]
-    assert (json.loads(call.request.body)['data']
+    assert (json.loads(call.request.body.decode())['data']
             ['relationships']['parent']['data']['id'] ==
             "2")
 
 
 @responses.activate
 def test_change_parent_with_change():
-    responses.add(responses.PATCH, f"{host}/children/1/relationships/parent")
+    responses.add(responses.PATCH,
+                  "{}/children/1/relationships/parent".format(host))
 
     child = Child(child_payloads[1])
     new_parent = Parent(id="2")
@@ -152,12 +156,14 @@ def test_change_parent_with_change():
 
     assert len(responses.calls) == 1
     call = responses.calls[0]
-    assert json.loads(call.request.body) == new_parent.as_relationship()
+    assert (json.loads(call.request.body.decode()) ==
+            new_parent.as_relationship())
 
 
 @responses.activate
 def test_add():
-    responses.add(responses.POST, f"{host}/parents/1/relationships/children")
+    responses.add(responses.POST,
+                  "{}/parents/1/relationships/children".format(host))
 
     parent = Parent(parent_payloads[1])
     children = [Child(payload) for payload in child_payloads[1:4]]
@@ -167,5 +173,5 @@ def test_add():
 
     assert len(responses.calls) == 1
     call = responses.calls[0]
-    assert (json.loads(call.request.body)['data'] ==
+    assert (json.loads(call.request.body.decode())['data'] ==
             [{'type': "children", 'id': str(i)} for i in range(1, 4)])

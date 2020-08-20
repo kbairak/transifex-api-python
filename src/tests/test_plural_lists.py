@@ -1,8 +1,11 @@
-import collections
+from __future__ import unicode_literals
+
 from copy import deepcopy
 
-import jsonapi
 import responses
+
+import jsonapi
+from jsonapi.compat import abc
 
 from .constants import host
 from .payloads import Payloads
@@ -36,7 +39,7 @@ PAYLOAD = {'data': {
 
 
 def make_simple_assertions(parent):
-    assert isinstance(parent.children, collections.abc.Sequence)
+    assert isinstance(parent.children, abc.Sequence)
     assert parent.children[0].id == "1"
     assert parent.children[1].id == "2"
 
@@ -62,7 +65,7 @@ def test_included():
 
 @responses.activate
 def test_refetch():
-    responses.add(responses.GET, f"{host}/parents/1/children",
+    responses.add(responses.GET, "{}/parents/1/children".format(host),
                   json={'data': child_payloads[1:4]})
 
     parent = Parent(PAYLOAD)
@@ -72,14 +75,14 @@ def test_refetch():
     parent.fetch('children', force=True)
     assert len(parent.children) == 3
     assert ([child.name for child in parent.children] ==
-            [f"child {i}" for i in range(1, 4)])
+            ["child {}".format(i) for i in range(1, 4)])
 
 
 @responses.activate
 def test_save_with_included():
     payload = deepcopy(PAYLOAD)
     payload['included'] = child_payloads[1:3]
-    responses.add(responses.PATCH, f"{host}/parents/1", json=payload)
+    responses.add(responses.PATCH, "{}/parents/1".format(host), json=payload)
     parent = Parent(PAYLOAD)
     parent.save(name="parent 1")
     assert [child.name for child in parent.children] == ["child 1", "child 2"]

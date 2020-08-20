@@ -1,15 +1,16 @@
-import collections
+from __future__ import unicode_literals
+
 from copy import deepcopy
 
 import requests
 
 from .querysets import Queryset
-from .utils import (has_data, has_links, is_list, is_null, is_queryset,
-                    is_related, is_related_list, is_resource,
+from .utils import (has_data, has_links, is_dict, is_list, is_null,
+                    is_queryset, is_related, is_related_list, is_resource,
                     is_resource_identifier)
 
 
-class Resource:
+class Resource(object):
     """ Subclass like this:
 
             >>> class Foo(jsonapi.Resource):
@@ -45,7 +46,7 @@ class Resource:
         else:
             self._overwrite(**kwargs)
 
-    def _overwrite(self, *,
+    def _overwrite(self,
                    # Copied from response to the instance
                    id=None, attributes=None, relationships=None, links=None,
                    # Used to overwrite 'related'
@@ -85,7 +86,7 @@ class Resource:
 
         # Relationships
         self.relationships, self.related = {}, {}
-        for key, value in relationships.items():
+        for key, value in deepcopy(relationships).items():
             self._set_relationship(key, value)
             relationship = self.relationships[key]
             if is_null(relationship) or has_data(relationship):
@@ -143,8 +144,8 @@ class Resource:
             if is_null(value) or has_data(value) or has_links(value):
                 self.relationships[key] = value
             else:
-                raise ValueError(f"Invalid type '{value}' for relationship "
-                                 f"'{key}'")
+                raise ValueError("Invalid type '{}' for relationship '{}'".
+                                 format(value, key))
 
     def set_related(self, key, value):
         """ Set 'value' as 'key' relationship's value. Works only with singular
@@ -165,8 +166,8 @@ class Resource:
         """
 
         if key not in self.relationships:
-            raise ValueError(f"Cannot change relationship '{key}' because "
-                             f"it's not an existing relationship.")
+            raise ValueError("Cannot change relationship '{}' because it's "
+                             "not an existing relationship.".format(key))
 
         relationship = self.relationships[key]
 
@@ -227,18 +228,18 @@ class Resource:
     def __getattr__(self, attr):
         if attr in ('a', 'attributes', 'R', 'relationships', 'r', 'related',
                     'id', 'links', 'redirect', 'API'):
-            return super().__getattribute__(attr)
+            return super(Resource, self).__getattribute__(attr)
         elif attr in self.attributes:
             return self.attributes[attr]
         elif attr in self.related:
             return self.related[attr]
         else:
-            return super().__getattribute__(attr)
+            return super(Resource, self).__getattribute__(attr)
 
     def __setattr__(self, attr, value):
         if attr in ('id', 'attributes', 'relationships', 'related', 'links',
                     'redirect', 'API'):
-            super().__setattr__(attr, value)
+            super(Resource, self).__setattr__(attr, value)
         elif attr in self.attributes:
             self.attributes[attr] = value
         elif attr in self.relationships:
@@ -247,10 +248,10 @@ class Resource:
             except ValueError as e:
                 raise AttributeError(str(e))
         else:
-            super().__setattr__(attr, value)
+            super(Resource, self).__setattr__(attr, value)
 
     # Fetching
-    def reload(self, *, include=None):
+    def reload(self, include=None):
         """ Fetch fresh data from the server for the object. """
 
         params = None
@@ -266,7 +267,7 @@ class Resource:
                             **response_body['data'])
 
     @classmethod
-    def get(cls, id=None, *, include=None, **filters):
+    def get(cls, id=None, include=None, **filters):
         """ Get a resource object by its ID. """
 
         if id is not None:
@@ -279,7 +280,7 @@ class Resource:
                 result = result.include(*include)
             return result.get(**filters)
 
-    def fetch(self, *relationship_names, force=False):
+    def fetch(self, *relationship_names, **kwargs):
         """ Fetches 'relationship', if it wasn't included when fetching 'self';
             `force=True` supported. Usage:
 
@@ -310,10 +311,12 @@ class Resource:
                 >>> print(child.parent.name)
         """
 
+        force = kwargs.pop('force', False)
+
         for relationship_name in relationship_names:
             if relationship_name not in self.relationships:
-                raise ValueError(f"{repr(self)} doesn't have relationship "
-                                 f"'{relationship_name}'")
+                raise ValueError("{} doesn't have relationship '{}'".
+                                 format(repr(self), relationship_name))
 
         for relationship_name in relationship_names:
             relationship = self.relationships[relationship_name]
@@ -340,8 +343,8 @@ class Resource:
                 # Plural relationship
                 url = relationship.\
                     get('links', {}).\
-                    get('related',
-                        f"/{self.TYPE}/{self.id}/{relationship_name}")
+                    get('related', "/{}/{}/{}".format(self.TYPE, self.id,
+                                                      relationship_name))
                 self.related[relationship_name] = Queryset(self.API, url)
 
         if len(relationship_names) == 1:
@@ -350,7 +353,7 @@ class Resource:
 
     @classmethod
     def list(cls):
-        return Queryset(cls.API, f"/{cls.TYPE}")
+        return Queryset(cls.API, "/{}".format(cls.TYPE))
 
     def _queryset_method(method):
         def _method(cls, *args, **kwargs):
@@ -427,7 +430,7 @@ class Resource:
                     result.setdefault('relationships', {})[field] =\
                         self.relationships[field]
                 else:
-                    raise ValueError(f"Unknown field '{field}'")
+                    raise ValueError("Unknown field '{}'".format(field))
         else:
             if self.attributes:
                 result['attributes'] = self.attributes
@@ -482,7 +485,7 @@ class Resource:
 
     # Handling files
     @classmethod
-    def create_with_form(cls, *, type=None, **kwargs):
+    def create_with_form(cls, type=None, **kwargs):
         """ Simply fowrard kwargs to requests, for non
             'application/vnd.api+json' requests (eg file uploads)
         """
@@ -498,9 +501,9 @@ class Resource:
         if self.redirect is None:
             raise ValueError("Cannot follow a non-redirect response")
         response_body = self.API.request('get', self.redirect)
-        if isinstance(response_body['data'], collections.abc.Sequence):
+        if is_list(response_body['data']):
             return Queryset.from_data(self.API, response_body)
-        elif isinstance(response_body['data'], collections.abc.Mapping):
+        elif is_dict(response_body['data']):
             return self.API.new(response_body)
         else:  # Unreachable code
             raise ValueError("Unknown format while following redirect")
@@ -636,7 +639,8 @@ class Resource:
     def _edit_relationship(self, method, field, value):
         url = self.relationships[field].\
             get('links', {}).\
-            get('self', f"/{self.TYPE}/{self.id}/relationships/{field}")
+            get('self',
+                "/{}/{}/relationships/{}".format(self.TYPE, self.id, field))
         self.API.request(method, url, json={'data': value})
 
     def _edit_plural_relationship(self, method, field, values):
@@ -835,7 +839,7 @@ class Resource:
         if not self.attributes and not self.relationships:
             details += " (Unfetched)"
 
-        return f"<{class_name}: {details}>"
+        return repr("<{}: {}>".format(class_name, details))
 
     def __copy__(self):
         # Will eventually call `_overwrite` so `deepcopy` will be used
@@ -853,10 +857,10 @@ class Resource:
 
     @classmethod
     def get_collection_url(cls):
-        return f"/{cls.TYPE}"
+        return "/{}".format(cls.TYPE)
 
     def get_item_url(self):
         if 'self' in self.links:
             return self.links['self']
         else:
-            return f"/{self.TYPE}/{self.id}"
+            return "/{}/{}".format(self.TYPE, self.id)

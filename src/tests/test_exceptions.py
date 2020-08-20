@@ -1,5 +1,8 @@
-import jsonapi
+from __future__ import unicode_literals
+
 import responses
+
+import jsonapi
 from jsonapi.exceptions import JsonApiException
 
 from .constants import host
@@ -16,7 +19,7 @@ class Foo(jsonapi.Resource):
 def test_exception_during_create():
     responses.add(
         responses.POST,
-        f"{host}/foos",
+        "{}/foos".format(host),
         json={'errors': [{
             'status': "409",
             'code': "conflict",

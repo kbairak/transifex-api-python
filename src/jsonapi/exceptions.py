@@ -1,3 +1,6 @@
+from __future__ import unicode_literals
+
+
 class JsonApiException(Exception):
     """ Assuming a JSON-API error response generated with:
 
@@ -33,7 +36,7 @@ class JsonApiException(Exception):
 
     def __init__(self, status_code, errors):
         errors = [JsonApiError(**error) for error in errors]
-        super().__init__(status_code, errors)
+        super(JsonApiException, self).__init__(status_code, errors)
 
     status_code = property(lambda self: self.args[0])
     errors = property(lambda self: self.args[1])
@@ -54,7 +57,7 @@ class JsonApiException(Exception):
     source = first_error_property('source')
 
 
-class JsonApiError:
+class JsonApiError(object):
     def __init__(self, status, code, title, detail, source=None):
         self.status = status
         self.code = code
@@ -63,7 +66,7 @@ class JsonApiError:
         self.source = source
 
     def __repr__(self):  # pragma: no cover
-        return f"<JsonApiError: {self.code} - {self.detail}>"
+        return repr("<JsonApiError: {} - {}>".format(self.code, self.detail))
 
     def to_dict(self):
         result = {'status': self.status, 'code': self.code,

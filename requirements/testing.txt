@@ -1,3 +1,4 @@
-responses
 pytest
 pytest-cov
+responses
+tox

@@ -1,17 +1,17 @@
-import collections
-import urllib
+from __future__ import unicode_literals
 
+from .compat import abc, parse_qs, urlparse
 from .exceptions import DoesNotExist, MultipleObjectsReturned
 
 
-class Queryset(collections.abc.MutableSequence):
+class Queryset(abc.MutableSequence):
     def __init__(self, API, url, params=None):
         if params is None:
             params = {}
 
-        parsed = urllib.parse.urlparse(url)
+        parsed = urlparse(url)
         path, query = parsed.path, parsed.query
-        query_params = urllib.parse.parse_qs(query)
+        query_params = parse_qs(query)
         query_params = {key: value[0] if len(value) == 1 else value
                         for key, value in list(query_params.items())}
 
@@ -101,7 +101,7 @@ class Queryset(collections.abc.MutableSequence):
         self_url = self._url
         if self._params:
             self_url += ('?' +
-                         '&'.join((f"{key}={value}"
+                         '&'.join(("{}={}".format(key, value)
                                    for key, value in self._params.items())))
 
         links = {'self': self_url}
@@ -139,7 +139,8 @@ class Queryset(collections.abc.MutableSequence):
 
     def all(self):
         for page in self.all_pages():
-            yield from page
+            for item in page:
+                yield item
 
     # Filters etc
     def filter(self, **filters):
@@ -148,7 +149,8 @@ class Queryset(collections.abc.MutableSequence):
         params = dict(self._params)
 
         for key, value in filters.items():
-            key = "filter" + ''.join((f"[{part}]" for part in key.split('__')))
+            key = "filter" + ''.join(("[{}]".format(part)
+                                      for part in key.split('__')))
             if isinstance(value, Resource):
                 value = value.id
 
@@ -163,7 +165,7 @@ class Queryset(collections.abc.MutableSequence):
             params['page'] = args[0]
         elif len(args) == 0 and kwargs:
             for key, value in kwargs.items():
-                params[f'page[{key}]'] = value
+                params['page[{}]'.format(key)] = value
         else:
             raise ValueError("Either one positional or keyword arguments "
                              "accepted for pagination")

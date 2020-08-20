@@ -1,4 +1,8 @@
-import collections
+from __future__ import unicode_literals
+
+import six
+
+from .compat import abc
 
 
 def is_resource(value):
@@ -12,12 +16,12 @@ def is_queryset(value):
 
 
 def is_dict(value):
-    return isinstance(value, collections.abc.Mapping)
+    return isinstance(value, abc.Mapping)
 
 
 def is_list(value):
-    return (isinstance(value, collections.abc.Sequence) and
-            not isinstance(value, str))
+    return (isinstance(value, abc.Sequence) and
+            not isinstance(value, six.string_types))
 
 
 def is_null(value):

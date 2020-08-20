@@ -1,5 +1,8 @@
-import jsonapi
+from __future__ import unicode_literals
+
 import responses
+
+import jsonapi
 from jsonapi.querysets import Queryset
 
 from .constants import host
@@ -23,7 +26,8 @@ payloads = Payloads('items')
 
 @responses.activate
 def test_queryset():
-    responses.add(responses.GET, f"{host}/items", json={'data': payloads[1:4]})
+    responses.add(responses.GET, "{}/items".format(host),
+                  json={'data': payloads[1:4]})
 
     queryset = Queryset(_api, '/items')
     list(queryset)
@@ -55,7 +59,7 @@ def test_from_data():
 
 @responses.activate
 def test_pagination():
-    responses.add(responses.GET, f"{host}/items?page=2",
+    responses.add(responses.GET, "{}/items?page=2".format(host),
                   json={'data': payloads[4:7],
                         'links': {'previous': "/items?page=1"}})
 
@@ -83,7 +87,8 @@ def test_pagination():
 
 @responses.activate
 def test_all():
-    responses.add(responses.GET, f"{host}/items", json={'data': payloads[1:4]})
+    responses.add(responses.GET, "{}/items".format(host),
+                  json={'data': payloads[1:4]})
     queryset = Item.list()
 
     assert len(queryset) == 3
@@ -99,11 +104,11 @@ def test_all():
 
 @responses.activate
 def test_all_with_pagination():
-    responses.add(responses.GET, f"{host}/items",
+    responses.add(responses.GET, "{}/items".format(host),
                   json={'data': payloads[1:4],
                         'links': {'next': "/items?page=2"}},
                   match_querystring=True)
-    responses.add(responses.GET, f"{host}/items?page=2",
+    responses.add(responses.GET, "{}/items?page=2".format(host),
                   json={'data': payloads[4:7],
                         'links': {'previous': "/items?page=1"}},
                   match_querystring=True)
@@ -131,9 +136,9 @@ def test_all_with_pagination():
 
 @responses.activate
 def test_filter():
-    responses.add(responses.GET, f"{host}/items", json={'data': payloads[1:5]},
-                  match_querystring=True)
-    responses.add(responses.GET, f"{host}/items?filter[odd]=1",
+    responses.add(responses.GET, "{}/items".format(host),
+                  json={'data': payloads[1:5]}, match_querystring=True)
+    responses.add(responses.GET, "{}/items?filter[odd]=1".format(host),
                   json={'data': payloads[1:5:2]}, match_querystring=True)
 
     all_items = Item.list()
@@ -151,7 +156,7 @@ def test_filter():
 
 @responses.activate
 def test_include():
-    responses.add(responses.GET, f"{host}/items", json={
+    responses.add(responses.GET, "{}/items".format(host), json={
         'data': [{'type': "items",
                   'id': "1",
                   'relationships': {'tag': {'data': {'type': "tags",
