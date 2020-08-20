@@ -5,6 +5,7 @@ import requests
 from .auth import BearerAuthentication
 from .compat import JSONDecodeError
 from .exceptions import JsonApiException
+from .resources import Resource
 
 
 class JsonApi(object):
@@ -118,7 +119,12 @@ class JsonApi(object):
                 data = data['data']
             return self.new(**data)
         else:
-            klass = self.registry[type]
+            if type in self.registry:
+                klass = self.registry[type]
+            else:
+                # Lets make a new class on the fly 
+                class klass(Resource):
+                    API = self
             return klass(**kwargs)
 
     def as_resource(self, data):

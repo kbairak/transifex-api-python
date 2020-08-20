@@ -312,7 +312,7 @@ of the relationships you want to fetch:
 
 ```python
 child.related
-# {parent: <Parent: 1 (Unfetched)>}
+# {'parent': <Parent: 1 (Unfetched)>}
 (child.related['parent'].id,
  child.related['parent'].attributes,
  child.related['parent'].relationships)
@@ -503,6 +503,25 @@ Child.list().all()
 # is equivalent to
 Child.all()
 ```
+
+The collections are also lazy (Django-style). You will not actually make any
+requests to the server until you try to access a collection like a list. So
+this:
+
+```python
+def get_children(gender=None, hair_color=None):
+    result = Child.list()
+    if gender is not None:
+        result = result.filter(gender=gender)
+    if hair_color is not None:
+        result = result.filter(hair_color=hair_color)
+    return result
+
+print([child.name for child in get_children(hair_color="red")])
+```
+
+will only make one request to the server during the execution of the list
+comprehension in the last line.
 
 You can also access pagination via the `has_next`, `has_previous`, `next` and
 `previous` methods of a returned list (which is what `all_pages` and `all` use
