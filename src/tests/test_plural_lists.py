@@ -69,10 +69,9 @@ def test_refetch():
                   json={'data': child_payloads[1:4]})
 
     parent = Parent(PAYLOAD)
-    parent.fetch('children')  # No force=True
     assert len(parent.children) == 2
 
-    parent.fetch('children', force=True)
+    parent.fetch('children')
     assert len(parent.children) == 3
     assert ([child.name for child in parent.children] ==
             ["child {}".format(i) for i in range(1, 4)])

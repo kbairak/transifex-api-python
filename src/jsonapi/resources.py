@@ -1,12 +1,12 @@
-from __future__ import unicode_literals, absolute_import
+from __future__ import absolute_import, unicode_literals
 
 from copy import deepcopy
 
 import requests
 
 from .collections import Collection
-from .utils import (has_data, has_links, is_collection, is_dict, is_list,
-                    is_null, is_related, is_related_list, is_resource,
+from .utils import (has_data, has_links, is_collection, is_dict, is_fetched,
+                    is_list, is_null, is_related, is_related_list, is_resource,
                     is_resource_identifier)
 
 
@@ -324,14 +324,10 @@ class Resource(object):
             if is_null(relationship):
                 continue
 
-            is_singular_fetched = (
-                is_resource(self.related.get(relationship_name)) and
-                (self.related[relationship_name].attributes or
-                 self.related[relationship_name].relationships)
-            )
-            is_plural_fetched = is_collection(self.related.
-                                              get(relationship_name))
-
+            related = self.related.get(relationship_name)
+            is_singular_fetched = is_fetched(related)
+            is_plural_fetched = (is_collection(related) and
+                                 all((is_fetched(item) for item in related)))
             if (is_singular_fetched or is_plural_fetched) and not force:
                 # Has been fetched already
                 continue

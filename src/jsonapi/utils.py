@@ -60,3 +60,7 @@ def is_related_list(value):
         value = value['data']
 
     return is_list(value) and all((is_related(item) for item in value))
+
+
+def is_fetched(value):
+    return is_resource(value) and (value.attributes or value.relationships)
