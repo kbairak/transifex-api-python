@@ -1,4 +1,4 @@
-from __future__ import unicode_literals, absolute_import
+from __future__ import absolute_import, unicode_literals
 
 from .compat import abc, parse_qs, urlparse
 from .exceptions import DoesNotExist, MultipleObjectsReturned

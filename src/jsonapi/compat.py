@@ -1,4 +1,4 @@
-from __future__ import unicode_literals, absolute_import
+from __future__ import absolute_import, unicode_literals
 
 import json
 
@@ -12,6 +12,6 @@ try:
 except ImportError:
     import collections as abc  # noqa
 try:
-    from urllib.parse import urlparse, parse_qs
+    from urllib.parse import parse_qs, urlparse
 except ImportError:
-    from urlparse import urlparse, parse_qs  # noqa
+    from urlparse import parse_qs, urlparse  # noqa

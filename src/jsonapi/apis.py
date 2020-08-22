@@ -1,4 +1,4 @@
-from __future__ import unicode_literals, absolute_import
+from __future__ import absolute_import, unicode_literals
 
 import requests
 
@@ -122,7 +122,7 @@ class JsonApi(object):
             if type in self.registry:
                 klass = self.registry[type]
             else:
-                # Lets make a new class on the fly 
+                # Lets make a new class on the fly
                 class klass(Resource):
                     API = self
             return klass(**kwargs)

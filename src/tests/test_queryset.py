@@ -1,4 +1,4 @@
-from __future__ import unicode_literals, absolute_import
+from __future__ import absolute_import, unicode_literals
 
 import responses
 
@@ -64,8 +64,8 @@ def test_pagination():
                         'links': {'previous': "/items?page=1"}})
 
     first_page = Collection.from_data(_api,
-                                    {'data': payloads[1:4],
-                                     'links': {'next': "/items?page=2"}})
+                                      {'data': payloads[1:4],
+                                       'links': {'next': "/items?page=2"}})
     assert first_page.has_next()
     second_page = first_page.next()
     list(second_page)
