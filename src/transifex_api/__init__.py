@@ -2,6 +2,8 @@ import time
 
 import jsonapi
 
+from jsonapi.exceptions import JsonApiException
+
 _api = jsonapi.JsonApi(host="https://rest.api.transifex.com")
 
 
@@ -75,6 +77,8 @@ class ResourceStringsAsyncUpload(jsonapi.Resource):
                                       files={'content': content})
 
         while True:
+            if upload.get('errors') and len(upload.errors) > 0:
+                raise JsonApiException(409, upload.errors)
             if upload.redirect:
                 return upload.follow()
             time.sleep(interval)
