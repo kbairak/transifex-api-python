@@ -77,8 +77,13 @@ class ResourceStringsAsyncUpload(jsonapi.Resource):
                                       files={'content': content})
 
         while True:
-            if upload.get('errors') and len(upload.errors) > 0:
-                raise JsonApiException(409, upload.errors)
+            if hasattr(upload, 'errors') and len(upload.errors) > 0:
+                errors = [{
+                    'code': e['code'],
+                    'detail': e['detail'],
+                    'title': e['detail'],
+                    'status': '409'} for e in upload.errors]
+                raise JsonApiException(409, errors)
             if upload.redirect:
                 return upload.follow()
             time.sleep(interval)
@@ -108,8 +113,13 @@ class ResourceTranslationsAsyncUpload(Resource):
                                       files={'content': content})
 
         while True:
-            if upload.get('errors') and len(upload.errors) > 0:
-                raise JsonApiException(409, upload.errors)
+            if hasattr(upload, 'errors') and len(upload.errors) > 0:
+                errors = [{
+                    'code': e['code'],
+                    'detail': e['detail'],
+                    'title': e['detail'],
+                    'status': '409'} for e in upload.errors]
+                raise JsonApiException(409, errors)
             if upload.redirect:
                 return upload.follow()
             time.sleep(interval)
