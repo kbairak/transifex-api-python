@@ -2,6 +2,8 @@ import time
 
 import jsonapi
 
+from jsonapi.exceptions import JsonApiException
+
 _api = jsonapi.JsonApi(host="https://rest.api.transifex.com")
 
 
@@ -75,6 +77,49 @@ class ResourceStringsAsyncUpload(jsonapi.Resource):
                                       files={'content': content})
 
         while True:
+            if hasattr(upload, 'errors') and len(upload.errors) > 0:
+                errors = [{
+                    'code': e['code'],
+                    'detail': e['detail'],
+                    'title': e['detail'],
+                    'status': '409'} for e in upload.errors]
+                raise JsonApiException(409, errors)
+            if upload.redirect:
+                return upload.follow()
+            time.sleep(interval)
+            upload.reload()
+
+
+@_api.register
+class ResourceTranslationsAsyncUpload(Resource):
+    TYPE = "resource_translations_async_uploads"
+
+    @classmethod
+    def upload(cls, resource, content, language, interval=5, file_type='default'):
+        """ Upload translation content with multipart/form-data.
+
+            :param resource: A (transifex) Resource instance or ID
+            :param content: A string or file-like object
+            :param language: A (transifex) Language instance or ID
+            :param interval: How often (in seconds) to poll for the completion
+                             of the upload job
+            :param file_type: The content file type
+        """
+
+        if isinstance(resource, Resource):
+            resource = resource.id
+
+        upload = cls.create_with_form(data={'resource': resource, 'language': language, 'file_type': file_type},
+                                      files={'content': content})
+
+        while True:
+            if hasattr(upload, 'errors') and len(upload.errors) > 0:
+                errors = [{
+                    'code': e['code'],
+                    'detail': e['detail'],
+                    'title': e['detail'],
+                    'status': '409'} for e in upload.errors]
+                raise JsonApiException(409, errors)
             if upload.redirect:
                 return upload.follow()
             time.sleep(interval)
