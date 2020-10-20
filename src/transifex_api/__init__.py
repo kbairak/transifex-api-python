@@ -95,7 +95,8 @@ class ResourceTranslationsAsyncUpload(Resource):
     TYPE = "resource_translations_async_uploads"
 
     @classmethod
-    def upload(cls, resource, content, language, interval=5, file_type='default'):
+    def upload(cls, resource, content, language, interval=5,
+               file_type='default'):
         """ Upload translation content with multipart/form-data.
 
             :param resource: A (transifex) Resource instance or ID
@@ -109,7 +110,9 @@ class ResourceTranslationsAsyncUpload(Resource):
         if isinstance(resource, Resource):
             resource = resource.id
 
-        upload = cls.create_with_form(data={'resource': resource, 'language': language, 'file_type': file_type},
+        upload = cls.create_with_form(data={'resource': resource,
+                                            'language': language,
+                                            'file_type': file_type},
                                       files={'content': content})
 
         while True:
@@ -139,3 +142,24 @@ class TeamMembership(jsonapi.Resource):
 @_api.register
 class ResourceLanguageStats(jsonapi.Resource):
     TYPE = "resource_language_stats"
+
+
+@_api.register
+class ResourceTranslationsAsyncDownload(jsonapi.Resource):
+    TYPE = "resource_translations_async_downloads"
+
+    @classmethod
+    def download(cls, interval=5, *args, **kwargs):
+        download = cls.create(*args, **kwargs)
+        while True:
+            if hasattr(download, 'errors') and len(download.errors) > 0:
+                errors = [{'code': e['code'],
+                           'detail': e['detail'],
+                           'title': e['detail'],
+                           'status': '409'}
+                          for e in download.errors]
+                raise JsonApiException(409, errors)
+            if download.redirect:
+                return download.redirect
+            time.sleep(interval)
+            download.reload()
