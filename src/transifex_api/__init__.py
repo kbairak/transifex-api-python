@@ -7,8 +7,8 @@ from jsonapi.exceptions import JsonApiException
 _api = jsonapi.JsonApi(host="https://rest.api.transifex.com")
 
 
-def setup(auth, host=None):
-    _api.setup(host, auth)
+def setup(auth, host=None, headers=None):
+    _api.setup(host=host, auth=auth, headers=headers)
 
 
 @_api.register
