@@ -140,6 +140,17 @@ The `auth` argument to `JsonApi` or `setup` can either be:
    _api = jsonapi.JsonApi(host="https://my.api.com", auth=myauth)
    ```
 
+#### Custom headers
+
+You can supply custom HTTP headers to be sent with every request to the remote
+server using the `headers` keyword argument to the `JsonApi` constructor or the
+`setup` method.
+
+```python
+import jsonapi
+_api = jsonapi.JsonApi(..., headers={'X-Application': "My-client"})
+```
+
 ### Retrieval
 
 #### URLs
@@ -712,7 +723,7 @@ new_child = Child.create(attributes={'name': "Achilles"},
 ##### Magic kwargs
 
 When making new (unsaved) instances, or when you create instances on the server
-with `.create()`, you can supply any keword argument apart from `id`,
+with `.create()`, you can supply any keyword argument apart from `id`,
 `attributes`, `relationships`, etc and they will be interpreted as attributes
 or relationships. Anything that looks like a relationship will be interpreted
 as such while everything else will be interpreted as an attribute.

@@ -34,11 +34,12 @@ class JsonApi(object):
             ...     TYPE = "foos"
     """
 
-    def __init__(self, host=None, auth=None):
+    def __init__(self, **kwargs):
         self.registry = {}
-        self.setup(host, auth)
+        self.headers = {}
+        self.setup(**kwargs)
 
-    def setup(self, host=None, auth=None):
+    def setup(self, host=None, auth=None, headers=None):
         if host is not None:
             self.host = host
 
@@ -47,6 +48,9 @@ class JsonApi(object):
                 self.make_auth_headers = auth
             else:
                 self.make_auth_headers = BearerAuthentication(auth)
+
+        if headers is not None:
+            self.headers = headers
 
     def register(self, klass):
         if klass.TYPE is not None:
@@ -74,13 +78,15 @@ class JsonApi(object):
             # Content-Type on its own
             content_type = None
 
-        if headers is None:
-            headers = {}
-        headers.update(self.make_auth_headers())
-        if content_type is not None:
-            headers.setdefault('Content-Type', content_type)
+        actual_headers = dict(self.headers)
 
-        response = requests.request(method, url, headers=headers,
+        if headers is not None:
+            actual_headers.update(headers)
+        actual_headers.update(self.make_auth_headers())
+        if content_type is not None:
+            actual_headers.setdefault('Content-Type', content_type)
+
+        response = requests.request(method, url, headers=actual_headers,
                                     data=data, files=files,
                                     allow_redirects=allow_redirects,
                                     **kwargs)
