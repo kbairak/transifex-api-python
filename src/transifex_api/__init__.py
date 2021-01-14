@@ -84,8 +84,13 @@ class ResourceStringsAsyncUpload(jsonapi.Resource):
                     'title': e['detail'],
                     'status': '409'} for e in upload.errors]
                 raise JsonApiException(409, errors)
+
             if upload.redirect:
                 return upload.follow()
+            if (hasattr(upload, 'attributes')
+                    and upload.attributes.get("details")):
+                return upload.attributes.get("details")
+
             time.sleep(interval)
             upload.reload()
 
@@ -123,8 +128,13 @@ class ResourceTranslationsAsyncUpload(Resource):
                     'title': e['detail'],
                     'status': '409'} for e in upload.errors]
                 raise JsonApiException(409, errors)
+
             if upload.redirect:
                 return upload.follow()
+            if (hasattr(upload, 'attributes')
+                    and upload.attributes.get("details")):
+                return upload.attributes.get("details")
+
             time.sleep(interval)
             upload.reload()
 
