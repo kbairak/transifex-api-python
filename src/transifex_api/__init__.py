@@ -12,13 +12,18 @@ def setup(auth, host=None, headers=None):
 
 
 @_api.register
+class User(jsonapi.Resource):
+    TYPE = "users"
+
+
+@_api.register
 class Organization(jsonapi.Resource):
     TYPE = "organizations"
 
 
 @_api.register
-class Team(jsonapi.Resource):
-    TYPE = "teams"
+class Language(jsonapi.Resource):
+    TYPE = "languages"
 
 
 @_api.register
@@ -27,8 +32,8 @@ class Project(jsonapi.Resource):
 
 
 @_api.register
-class Language(jsonapi.Resource):
-    TYPE = "languages"
+class ProjectWebhook(jsonapi.Resource):
+    TYPE = "project_webhooks"
 
 
 @_api.register
@@ -48,12 +53,6 @@ class Resource(jsonapi.Resource):
 @_api.register
 class ResourceString(jsonapi.Resource):
     TYPE = "resource_strings"
-
-
-@_api.register
-class ResourceTranslation(jsonapi.Resource):
-    TYPE = "resource_translations"
-    EDITABLE = ["strings", 'reviewed', "proofread"]
 
 
 @_api.register
@@ -93,6 +92,72 @@ class ResourceStringsAsyncUpload(jsonapi.Resource):
 
             time.sleep(interval)
             upload.reload()
+
+
+@_api.register
+class ResourceStringComment(jsonapi.Resource):
+    TYPE = "resource_string_comments"
+
+
+@_api.register
+class I18nFormat(jsonapi.Resource):
+    TYPE = "i18n_formats"
+
+
+@_api.register
+class ContextScreenshot(jsonapi.Resource):
+    TYPE = "context_screenshots"
+
+
+@_api.register
+class ContextScreenshotMap(jsonapi.Resource):
+    TYPE = "context_screenshot_map"
+
+
+@_api.register
+class OrganizationActivityReportsAsyncDownload(jsonapi.Resource):
+    TYPE = "organization_activity_reports_async_downloads"
+
+
+@_api.register
+class ProjectActivityReportsAsyncDownload(jsonapi.Resource):
+    TYPE = "project_activity_reports_async_downloads"
+
+
+@_api.register
+class ResourceActivityReportsAsyncDownload(jsonapi.Resource):
+    TYPE = "resource_activity_reports_async_downloads"
+
+
+@_api.register
+class ResourceLanguageStats(jsonapi.Resource):
+    TYPE = "resource_language_stats"
+
+
+@_api.register
+class ResourceTranslation(jsonapi.Resource):
+    TYPE = "resource_translations"
+
+
+@_api.register
+class ResourceTranslationsAsyncDownload(jsonapi.Resource):
+    TYPE = "resource_translations_async_downloads"
+
+    @classmethod
+    def download(cls, interval=5, *args, **kwargs):
+        download = cls.create(*args, **kwargs)
+        while True:
+            if hasattr(download, 'errors') and len(download.errors) > 0:
+                errors = [{'code': e['code'],
+                           'detail': e['detail'],
+                           'title': e['detail'],
+                           'status': '409'}
+                          for e in download.errors]
+                raise JsonApiException(409, errors)
+            if download.redirect:
+                return download.redirect
+            time.sleep(interval)
+            download.reload()
 
 
 @_api.register
@@ -140,36 +205,15 @@ class ResourceTranslationsAsyncUpload(Resource):
 
 
 @_api.register
-class User(jsonapi.Resource):
-    TYPE = "users"
-
-
-@_api.register
 class TeamMembership(jsonapi.Resource):
     TYPE = "team_memberships"
 
 
 @_api.register
-class ResourceLanguageStats(jsonapi.Resource):
-    TYPE = "resource_language_stats"
+class Team(jsonapi.Resource):
+    TYPE = "teams"
 
 
 @_api.register
-class ResourceTranslationsAsyncDownload(jsonapi.Resource):
-    TYPE = "resource_translations_async_downloads"
-
-    @classmethod
-    def download(cls, interval=5, *args, **kwargs):
-        download = cls.create(*args, **kwargs)
-        while True:
-            if hasattr(download, 'errors') and len(download.errors) > 0:
-                errors = [{'code': e['code'],
-                           'detail': e['detail'],
-                           'title': e['detail'],
-                           'status': '409'}
-                          for e in download.errors]
-                raise JsonApiException(409, errors)
-            if download.redirect:
-                return download.redirect
-            time.sleep(interval)
-            download.reload()
+class TmxAsyncdownload(jsonapi.Resource):
+    TYPE = "tmx_async_downloads"
