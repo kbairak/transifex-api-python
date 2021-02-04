@@ -1,6 +1,7 @@
 from __future__ import absolute_import, unicode_literals
 
 import requests
+import six
 
 from .auth import BearerAuthentication
 from .compat import JSONDecodeError
@@ -8,7 +9,17 @@ from .exceptions import JsonApiException
 from .resources import Resource
 
 
-class JsonApi(object):
+class _JsonApiMetaclass(type):
+    def __new__(cls, *args, **kwargs):
+        result = super().__new__(cls, *args, **kwargs)
+
+        # Use a copy, not reference to parent's registry
+        result.registry = list(getattr(result, 'registry', []))
+
+        return result
+
+
+class JsonApi(six.with_metaclass(_JsonApiMetaclass, object)):
     """ Inteface for a new {json:api} API.
 
         - host: The URL of the API
@@ -34,8 +45,22 @@ class JsonApi(object):
             ...     TYPE = "foos"
     """
 
+    HOST = None
+
     def __init__(self, **kwargs):
-        self.registry = {}
+        self.type_registry = {}
+        self.class_registry = {}
+
+        for base_class in self.__class__.registry:
+            # Dynamically create a subclass adding 'self' (the API connection
+            # instance) as a class variable to it
+            child_class = type(base_class.__name__,
+                               (base_class, ),
+                               {'API': self})
+            self.type_registry[base_class.TYPE] = child_class
+            self.class_registry[base_class.__name__] = child_class
+
+        self.host = self.HOST
         self.headers = {}
         self.setup(**kwargs)
 
@@ -52,11 +77,36 @@ class JsonApi(object):
         if headers is not None:
             self.headers = headers
 
-    def register(self, klass):
-        if klass.TYPE is not None:
-            self.registry[klass.TYPE] = klass
-        klass.API = self
+    @classmethod
+    def register(cls, klass):
+        cls.registry.append(klass)
         return klass
+
+    def __getattr__(self, attr):
+        """ Access a registered API resource class. A class name or API
+            resource type can be used.
+
+                >>> class FooApi(JsonApi):
+                ...     HOST = "https://api.foo.com"
+
+                >>> @FooApi.register
+                ... class Foo(Resource):
+                ...     TYPE = "foos"
+
+                >>> foo_api = FooApi()
+
+                >>> foo_api.Foo.list()
+                >>> # or
+                >>> foo_api.foos.list()
+        """
+
+        try:
+            return self.class_registry[attr]
+        except KeyError:
+            try:
+                return self.type_registry[attr]
+            except KeyError:
+                raise AttributeError(attr)
 
     #                 Required args
     def request(self, method, url,
@@ -125,8 +175,8 @@ class JsonApi(object):
                 data = data['data']
             return self.new(**data)
         else:
-            if type in self.registry:
-                klass = self.registry[type]
+            if type in self.type_registry:
+                klass = self.type_registry[type]
             else:
                 # Lets make a new class on the fly
                 class klass(Resource):
