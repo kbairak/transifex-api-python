@@ -11,7 +11,7 @@ from .resources import Resource
 
 class _JsonApiMetaclass(type):
     def __new__(cls, *args, **kwargs):
-        result = super().__new__(cls, *args, **kwargs)
+        result = super(_JsonApiMetaclass, cls).__new__(cls, *args, **kwargs)
 
         # Use a copy, not reference to parent's registry
         result.registry = list(getattr(result, 'registry', []))

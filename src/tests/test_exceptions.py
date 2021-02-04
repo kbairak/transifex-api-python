@@ -7,12 +7,17 @@ from jsonapi.exceptions import JsonApiException
 
 from .constants import host
 
-_api = jsonapi.JsonApi(host=host, auth="test_api_key")
+
+class ATestApi(jsonapi.JsonApi):
+    HOST = host
 
 
-@_api.register
+@ATestApi.register
 class Foo(jsonapi.Resource):
     TYPE = "foos"
+
+
+test_api = ATestApi(auth="test_api_key")
 
 
 @responses.activate
@@ -32,7 +37,7 @@ def test_exception_during_create():
 
     exc = None
     try:
-        Foo.create(attributes={'username': "Foo"})
+        test_api.Foo.create(attributes={'username': "Foo"})
     except JsonApiException as e:
         exc = e
 

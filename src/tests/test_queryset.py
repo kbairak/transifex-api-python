@@ -8,17 +8,22 @@ from jsonapi.collections import Collection
 from .constants import host
 from .payloads import Payloads
 
-_api = jsonapi.JsonApi(host=host, auth="test_api_key")
+
+class ATestApi(jsonapi.JsonApi):
+    HOST = host
 
 
-@_api.register
+@ATestApi.register
 class Item(jsonapi.Resource):
     TYPE = "items"
 
 
-@_api.register
+@ATestApi.register
 class Tag(jsonapi.Resource):
     TYPE = "tags"
+
+
+test_api = ATestApi(host=host, auth="test_api_key")
 
 
 payloads = Payloads('items')
@@ -29,7 +34,7 @@ def test_collection():
     responses.add(responses.GET, "{}/items".format(host),
                   json={'data': payloads[1:4]})
 
-    collection = Collection(_api, '/items')
+    collection = Collection(test_api, '/items')
     list(collection)
 
     assert len(collection) == 3
@@ -44,7 +49,7 @@ def test_collection():
 
 
 def test_from_data():
-    collection = Collection.from_data(_api, {'data': payloads[1:4]})
+    collection = Collection.from_data(test_api, {'data': payloads[1:4]})
 
     assert len(collection) == 3
     assert isinstance(collection[0], Item)
@@ -63,7 +68,7 @@ def test_pagination():
                   json={'data': payloads[4:7],
                         'links': {'previous': "/items?page=1"}})
 
-    first_page = Collection.from_data(_api,
+    first_page = Collection.from_data(test_api,
                                       {'data': payloads[1:4],
                                        'links': {'next': "/items?page=2"}})
     assert first_page.has_next()
@@ -89,7 +94,7 @@ def test_pagination():
 def test_all():
     responses.add(responses.GET, "{}/items".format(host),
                   json={'data': payloads[1:4]})
-    collection = Item.list()
+    collection = test_api.Item.list()
 
     assert len(collection) == 3
     assert isinstance(collection[0], Item)
@@ -113,7 +118,7 @@ def test_all_with_pagination():
                         'links': {'previous': "/items?page=1"}},
                   match_querystring=True)
 
-    first_page = Item.list()
+    first_page = test_api.Item.list()
 
     assert first_page.has_next()
     second_page = first_page.next()
@@ -141,17 +146,17 @@ def test_filter():
     responses.add(responses.GET, "{}/items?filter[odd]=1".format(host),
                   json={'data': payloads[1:5:2]}, match_querystring=True)
 
-    all_items = Item.list()
-    odd_items = Item.filter(odd=1)
+    all_items = test_api.Item.list()
+    odd_items = test_api.Item.filter(odd=1)
 
     assert len(all_items) == 4
     assert len(odd_items) == 2
 
     assert list(odd_items) == [all_items[0], all_items[2]]
 
-    assert (list(Item.filter(odd=1)) ==
-            list(Item.list().filter(odd=1)) ==
-            list(Item.filter(odd=2).filter(odd=1)))
+    assert (list(test_api.Item.filter(odd=1)) ==
+            list(test_api.Item.list().filter(odd=1)) ==
+            list(test_api.Item.filter(odd=2).filter(odd=1)))
 
 
 @responses.activate
@@ -173,6 +178,6 @@ def test_include():
                       'attributes': {'name': "tag2"}}],
     })
 
-    item1, item2 = Item.list()
+    item1, item2 = test_api.Item.list()
     assert item1.tag.name == "tag1"
     assert item2.tag.name == "tag2"

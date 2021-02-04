@@ -5,43 +5,53 @@ from jsonapi.auth import ULFAuthentication
 
 from .constants import host
 
-_api = jsonapi.JsonApi()
+
+class ATestApi(jsonapi.JsonApi):
+    HOST = host
 
 
-def reset_setup():
-    _api.setup(host, "test_api_key")
-    assert _api.make_auth_headers() == {'Authorization': "Bearer test_api_key"}
-    assert _api.host == host
-
-
-@_api.register
+@ATestApi.register
 class GlobalTest(jsonapi.Resource):
     TYPE = "globaltests"
 
 
-def test_class_registry():
-    assert _api.registry['globaltests'] is GlobalTest
+test_api = ATestApi()
+
+
+def reset_setup():
+    test_api.setup(host=host, auth="test_api_key")
+    assert (test_api.make_auth_headers() ==
+            {'Authorization': "Bearer test_api_key"})
+    assert test_api.host == host
+
+
+def test_registries():
+    assert issubclass(test_api.type_registry['globaltests'], GlobalTest)
+    assert issubclass(test_api.class_registry['GlobalTest'], GlobalTest)
 
 
 def test_setup_plaintext():
-    _api.setup("http://some.host", "another_key")
-    assert _api.make_auth_headers() == {'Authorization': "Bearer another_key"}
-    assert _api.host == "http://some.host"
+    test_api.setup(host="http://some.host", auth="another_key")
+    assert (test_api.make_auth_headers() ==
+            {'Authorization': "Bearer another_key"})
+    assert test_api.host == "http://some.host"
     reset_setup()
 
 
 def test_setup_ulf():
-    _api.setup(host, ULFAuthentication('public'))
-    assert _api.make_auth_headers() == {'Authorization': "ULF public"}
+    test_api.setup(auth=ULFAuthentication('public'))
+    assert test_api.make_auth_headers() == {'Authorization': "ULF public"}
 
-    _api.setup(host, ULFAuthentication('public', 'secret'))
-    assert _api.make_auth_headers() == {'Authorization': "ULF public:secret"}
+    test_api.setup(auth=ULFAuthentication('public', 'secret'))
+    assert (test_api.make_auth_headers() ==
+            {'Authorization': "ULF public:secret"})
 
     reset_setup()
 
 
 def test_setup_any_callable():
-    _api.setup("http://some.host2", lambda: {'Authorization': "Another key2"})
-    assert _api.make_auth_headers() == {'Authorization': "Another key2"}
-    assert _api.host == "http://some.host2"
+    test_api.setup(host="http://some.host2",
+                   auth=lambda: {'Authorization': "Another key2"})
+    assert test_api.make_auth_headers() == {'Authorization': "Another key2"}
+    assert test_api.host == "http://some.host2"
     reset_setup()
