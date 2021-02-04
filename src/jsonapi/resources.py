@@ -139,6 +139,7 @@ class Resource(object):
         elif is_resource(value):
             self.relationships[key] = value.as_relationship()
         else:
+            value = deepcopy(value)
             if not is_null(value) and is_resource_identifier(value):
                 value = {'data': value}
             if is_null(value) or has_data(value) or has_links(value):
