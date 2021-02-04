@@ -4,34 +4,32 @@ import jsonapi
 
 from jsonapi.exceptions import JsonApiException
 
-_api = jsonapi.JsonApi(host="https://rest.api.transifex.com")
+
+class TransifexApi(jsonapi.JsonApi):
+    HOST = "https://rest.api.transifex.com"
 
 
-def setup(auth, host=None, headers=None):
-    _api.setup(host=host, auth=auth, headers=headers)
-
-
-@_api.register
+@TransifexApi.register
 class Organization(jsonapi.Resource):
     TYPE = "organizations"
 
 
-@_api.register
+@TransifexApi.register
 class Team(jsonapi.Resource):
     TYPE = "teams"
 
 
-@_api.register
+@TransifexApi.register
 class Project(jsonapi.Resource):
     TYPE = "projects"
 
 
-@_api.register
+@TransifexApi.register
 class Language(jsonapi.Resource):
     TYPE = "languages"
 
 
-@_api.register
+@TransifexApi.register
 class Resource(jsonapi.Resource):
     TYPE = "resources"
 
@@ -45,18 +43,18 @@ class Resource(jsonapi.Resource):
         return count
 
 
-@_api.register
+@TransifexApi.register
 class ResourceString(jsonapi.Resource):
     TYPE = "resource_strings"
 
 
-@_api.register
+@TransifexApi.register
 class ResourceTranslation(jsonapi.Resource):
     TYPE = "resource_translations"
     EDITABLE = ["strings", 'reviewed', "proofread"]
 
 
-@_api.register
+@TransifexApi.register
 class ResourceStringsAsyncUpload(jsonapi.Resource):
     TYPE = "resource_strings_async_uploads"
 
@@ -95,7 +93,7 @@ class ResourceStringsAsyncUpload(jsonapi.Resource):
             upload.reload()
 
 
-@_api.register
+@TransifexApi.register
 class ResourceTranslationsAsyncUpload(Resource):
     TYPE = "resource_translations_async_uploads"
 
@@ -139,22 +137,22 @@ class ResourceTranslationsAsyncUpload(Resource):
             upload.reload()
 
 
-@_api.register
+@TransifexApi.register
 class User(jsonapi.Resource):
     TYPE = "users"
 
 
-@_api.register
+@TransifexApi.register
 class TeamMembership(jsonapi.Resource):
     TYPE = "team_memberships"
 
 
-@_api.register
+@TransifexApi.register
 class ResourceLanguageStats(jsonapi.Resource):
     TYPE = "resource_language_stats"
 
 
-@_api.register
+@TransifexApi.register
 class ResourceTranslationsAsyncDownload(jsonapi.Resource):
     TYPE = "resource_translations_async_downloads"
 
@@ -173,3 +171,7 @@ class ResourceTranslationsAsyncDownload(jsonapi.Resource):
                 return download.redirect
             time.sleep(interval)
             download.reload()
+
+
+# This is our global object
+transifex_api = TransifexApi()

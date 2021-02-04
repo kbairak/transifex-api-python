@@ -8,13 +8,13 @@ A python SDK for the [Transifex API (v3)](https://transifex.github.io/openapi/)
 * [Installation](#installation)
 * [jsonapi usage](#jsonapi-usage)
    * [Setting up](#setting-up)
-      * [Registering Resource subclasses](#registering-resource-subclasses)
-      * [Customizing setup configuration](#customizing-setup-configuration)
+      * [Global <em>API connection instances</em>](#global-api-connection-instances)
       * [Authentication](#authentication)
+      * [Custom headers](#custom-headers)
    * [Retrieval](#retrieval)
       * [URLs](#urls)
       * [Getting a single resource object from the API](#getting-a-single-resource-object-from-the-api)
-      * [Fetching relationships](#fetching-relationships)
+      * [Relationships](#relationships)
       * [Shortcuts](#shortcuts)
       * [Getting Resource collections](#getting-resource-collections)
       * [Prefetching relationships with include](#prefetching-relationships-with-include)
@@ -29,7 +29,7 @@ A python SDK for the [Transifex API (v3)](https://transifex.github.io/openapi/)
 * [transifex_api usage](#transifex_api-usage)
 * [Testing](#testing)
 
-<!-- Added by: kbairak, at: Wed 19 Aug 2020 04:17:42 PM EEST -->
+<!-- Added by: kbairak, at: Thu Feb  4 01:35:10 PM EET 2021 -->
 
 <!--te-->
 
@@ -58,66 +58,117 @@ pip install -e .  # If you want to work on the SDK's source code
 
 ### Setting up
 
-In order to use `jsonapi`, you need to create a `JsonApi` object that
-represents a connection with the API server:
+Using `jsonapi` means creating your own API SDK for a remote service. In order
+to do that, you need to first define an _API connection type_.  This is done by
+subclassing `jsonapi.JsonApi`:
 
 ```python
 import jsonapi
-_api = jsonapi.JsonApi(host="https://api.someservice.com", auth="<API_TOKEN>")
+
+class FamilyApi(jsonapi.JsonApi):
+   HOST = "https://api.families.com"
 ```
 
-#### Registering Resource subclasses
-
-Resource subclasses must be registered to that API instance with:
+Next, you have to define some _API resource types_ and register them to the
+_API connection type_. This is done by subclassing `jsonapi.Resource` and
+decorating it with the connection type's `register` method:
 
 ```python
-@_api.register
+@FamilyApi.register
 class Parent(jsonapi.Resource):
-    TYPE = "parents"
+   TYPE = "parents"
 
-@_api.register
+@FamilyApi.register
 class Child(jsonapi.Resource):
-    TYPE = "children"
+   TYPE = "children"
+```
+
+Users of your SDK can then instantiate your _API connection type_, providing
+authentication credentials and/or overriding the host, in case you want to test
+against a sandbox API server and not the production one:
+
+```python
+family_api = FamilyApi(host="https://sandbox.api.families.com",
+                       auth="<MY_TOKEN>")
+```
+
+Finally the API resource types you have registered can be accessed as
+attributes on this _API connection instance_. You can either use the class's
+name or the API resource's type:
+
+```python
+child = family_api.Child.get('1')
+child = family_api.children.get('1')
 ```
 
 This is enough to get you started since the library will be able to provide you
 with a lot of functionality based on the structure of the responses you get
 from the server. Make sure you define and register Resource subclasses for
 every type you intend to encounter, because `jsonapi` will use the API
-instance's registry to resolve the appropriate subclass the items included in
-the API's responses.
+instance's registry to resolve the appropriate subclass for the items included
+in the API's responses.
 
-#### Customizing setup configuration
+#### Global _API connection instances_
 
-The arguments to `JsonApi` are optional. You can add or edit them later using
-the `.setup` method (which accepts the same arguments). This way, you can
-implement an interface to a server as a library and offer the option to users
-to set their authentication method and/or host:
+You can configure an already created _API connection instance_ by calling the
+`setup` method, which accepts the same keyword arguments as the constructor. In
+fact, `JsonApi`'s `__init__` and `setup` methods have been written in such a
+way that the following two snippets should produce an identical outcome:
+
+```python
+kwargs = ...
+family_api = FamilyApi(**kwargs)
+```
+
+```python
+kwargs = ...
+family_api = FamilyApi()
+family_api.setup(**kwargs)
+```
+
+This way, you can implement your SDK in a way that offers the option to users
+to either use a _global API connection instance_ or multiple instances. In
+fact, this is exactly how `transifex_api` has been set up:
 
 ```python
 # src/transifex_api/__init__.py
 
 import jsonapi
 
-_api = jsonapi.JsonApi(host="https://rest.api.transifex.com")
+class TransifexApi(jsonapi.JsonApi):
+    HOST = "https://rest.api.transifex.com"
 
-@_api.register
+@TransifexApi.register
 class Organization(jsonapi.Resource):
     TYPE = "organizations"
 
-def setup(auth):
-    _api.setup(auth=auth)
+transifex_api = TransifexApi()
 ```
 
 ```python
-# app.py
+# app.py (uses the global API connection instance)
 
-import transifex_api
+from transifex_api import transifex_api
 
-transifex_api.setup("<API_TOKEN>")
+transifex_api.setup(auth="<API_TOKEN>")
 organization = transifex_api.Organization.get("1")
-...
+
 ```
+
+```python
+# app.py (uses multiple custom API connection instances)
+
+from transifex_api import TransifexApi
+
+api_1 = TransifexApi(auth="<API_TOKEN_1>")
+api_2 = TransifexApi(auth="<API_TOKEN_2>")
+
+organization_1 = api_1.Organization.get("1")
+organization_2 = api_2.Organization.get("2")
+```
+
+_(The whole logic behind this initialization process is further explained
+[here](https://www.kbairak.net/programming/python/2020/09/16/global-singleton-vs-instance-for-libraries.html))_
 
 #### Authentication
 
@@ -131,13 +182,15 @@ The `auth` argument to `JsonApi` or `setup` can either be:
    ```python
    import datetime
    import jsonapi
+
+   from family_api import FamilyApi
    from .secrets import KEY
    from .crypto import sign
 
    def myauth():
        return {'x-signature': sign(KEY, datetime.datetime.now())}
 
-   _api = jsonapi.JsonApi(host="https://my.api.com", auth=myauth)
+   family_api = FamilyApi(auth=myauth)
    ```
 
 #### Custom headers
@@ -147,8 +200,8 @@ server using the `headers` keyword argument to the `JsonApi` constructor or the
 `setup` method.
 
 ```python
-import jsonapi
-_api = jsonapi.JsonApi(..., headers={'X-Application': "My-client"})
+from family_api import FamilyApi
+family_api = FamilyApi(..., headers={'X-Application': "My-client"})
 ```
 
 ### Retrieval
@@ -162,8 +215,8 @@ override the `get_collection_url` classmethod and the `get_item_url()` method
 of the resource's subclass:
 
 ```python
-@_api.register
-class Children(jsonapi.Resource):
+@FamilyApi.register
+class Child(jsonapi.Resource):
     TYPE = "children"
 
     @classmethod
@@ -181,7 +234,7 @@ If you know the ID of the resource object, you can fetch its {json:api}
 representation with:
 
 ```python
-child = Child.get("1")
+child = family_api.Child.get("1")
 ```
 
 The attributes of a resource object are `id`, `attributes`, `relationships`,
@@ -189,7 +242,7 @@ The attributes of a resource object are `id`, `attributes`, `relationships`,
 exactly the same value as in the API response.
 
 ```python
-parent = Parent.get("1")
+parent = family_api.Parent.get("1")
 parent.id
 # "1"
 parent.attributes
@@ -198,7 +251,7 @@ parent.relationships
 # {'children': {'links': {'self': "/parent/1/relationships/children",
 #                         'related': "/children?filter[parent]=1"}}}
 
-child = Child.get("1")
+child = family_api.Child.get("1")
 child.id
 # "1"
 child.attributes
@@ -214,7 +267,7 @@ You can reload an object from the server by calling `.reload()`:
 ```python
 child.reload()
 # equivalent to
-child = Child.get(child.id)
+child = family_api.Child.get(child.id)
 ```
 
 #### Relationships
@@ -295,14 +348,14 @@ these have been fetched from the API. Lets revisit the last example and inspect
 the `relationships` and `related` fields:
 
 ```python
-parent = Parent.get("1")
+parent = family_api.Parent.get("1")
 parent.relationships
 # {'children': {'links': {'self': "/parent/1/relationships/children",
 #                         'related': "/children?filter[parent]=1"}}}
 parent.related
 # {}
 
-child = Child.get("1")
+child = family_api.Child.get("1")
 child.relationships
 # {'parent': {'data': {'type': "parents", 'id': "1"},
 #             'links': {'self': "/children/1/relationships/parent",
@@ -360,7 +413,7 @@ If `.fetch()` is only provided with one positional argument, it will return the
 relation:
 
 ```python
-parent = Parent.get("1")
+parent = family_api.Parent.get("1")
 
 print(parent.fetch('children')[1].name)
 # "Hercules"
@@ -424,7 +477,7 @@ You can access a collection of resource objects using one of the `list`,
 classmethods of Resource subclass.
 
 ```python
-children = Child.list()
+children = family_api.Child.list()
 # [<Child: 1>, <Child: 2>, ...]
 ```
 
@@ -444,11 +497,11 @@ Each method does the following:
   of a filter operation will result in using its `id` field_
 
   ```python
-  parent = Parent.get("1")
+  parent = family_api.Parent.get("1")
 
-  Child.filter(parent=parent)
+  family_api.Child.filter(parent=parent)
   # is equivalent to
-  Child.filter(parent=parent.id)
+  family_api.Child.filter(parent=parent.id)
   ```
 
 - `page` applies pagination; it accepts either one positional argument which
@@ -502,17 +555,17 @@ Each method does the following:
 All the above methods can be chained to each other. So:
 
 ```python
-Child.list().filter(a=1)
+family_api.Child.list().filter(a=1)
 # is equivalent to
-Child.filter(a=1)
+family_api.Child.filter(a=1)
 
-Child.filter(a=1).filter(b=2)
+family_api.Child.filter(a=1).filter(b=2)
 # is equivalent to
-Child.filter(a=1, b=2)
+family_api.Child.filter(a=1, b=2)
 
-Child.list().all()
+family_api.Child.list().all()
 # is equivalent to
-Child.all()
+family_api.Child.all()
 ```
 
 The collections are also lazy (Django-style). You will not actually make any
@@ -521,7 +574,7 @@ this:
 
 ```python
 def get_children(gender=None, hair_color=None):
-    result = Child.list()
+    result = family_api.Child.list()
     if gender is not None:
         result = result.filter(gender=gender)
     if hair_color is not None:
@@ -560,11 +613,11 @@ included values of the response will be used to prefill the relevant fields of
 `related`:
 
 ```python
-child = Child.get("1", include=['parent'])
+child = family_api.Child.get("1", include=['parent'])
 child.parent.name  # No need to fetch the parent
 # "Zeus"
 
-children = Child.list().include('parent')
+children = family_api.Child.list().include('parent')
 [child.parent.name for child in children]  # No need to fetch the parents
 # ["Zeus", "Zeus", ...]
 ```
@@ -574,7 +627,7 @@ supplies the related items in the `included` section, these too will be
 prefilled.
 
 ```python
-parent = Parent.get("1", include=['children'])
+parent = family_api.Parent.get("1", include=['children'])
 
 # Assuming the response looks like:
 # {'data': {'type': "parents",
@@ -602,7 +655,7 @@ it will raise a `jsonapi.DoesNotExist` or `jsonapi.MultipleObjectsReturned`
 exception accordingly (both are subclasses of `jsonapi.NotSingleItem`).
 
 ```python
-child = Child.filter(name="Bill").get()
+child = family_api.Child.filter(name="Bill").get()
 ```
 
 The `Resource`'s `.get()` classmethod, which we covered before, also accepts
@@ -611,9 +664,9 @@ way, will apply the filters and use the collection's `.get()` method on the
 result.
 
 ```python
-child = Child.get(name="Bill")
+child = family_api.Child.get(name="Bill")
 # is equivalent to
-child = Child.filter(name="Bill").get()
+child = family_api.Child.filter(name="Bill").get()
 ```
 
 _Note: The `Resource`'s `.get()` classmethod accepts an `include` keyword
@@ -622,12 +675,12 @@ called 'include'_
 
 ```python
 # Don't do this
-Child.get(name="Bill", include="parent")
+family_api.Child.get(name="Bill", include="parent")
 # equivalent to
-Child.filter(name="Bill").include('parent').get()
+family_api.Child.filter(name="Bill").include('parent').get()
 
 # Do this instead
-child = Child.filter(name="Bill", include="parent").get()
+child = family_api.Child.filter(name="Bill", include="parent").get()
 ```
 
 ### Editing
@@ -644,17 +697,18 @@ can specify which fields will be sent with:
 - the `EDITABLE` class attribute of the Resource subclass
 
 ```python
-child = Child.get("1")
+child = family_api.Child.get("1")
 child.name += " the Great"
 child.save('name')
 
 # or
 
+@FamilyApi.register
 class Child(Resource):
     TYPE = "children"
     EDITABLE = ['name']
 
-child = Child.get("1")
+child = family_api.Child.get("1")
 child.name += " the Great"
 child.save()
 ```
@@ -676,8 +730,8 @@ Calling `.save()` on an object whose `id` is not set will result in a POST
 request which will (attempt to) create the resource on the server.
 
 ```python
-parent = Parent.get("1")
-child = Child(attributes={'name': "Hercules"},
+parent = family_api.Parent.get("1")
+child = family_api.Child(attributes={'name': "Hercules"},
               relationships={'parent': parent})
 child.save()
 ```
@@ -689,8 +743,8 @@ timestamps).
 There is a shortcut for the above, called `.create()`
 
 ```python
-parent = Parent.get("1")
-child = Child.create(attributes={'name': "Hercules"},
+parent = family_api.Parent.get("1")
+child = family_api.Child.create(attributes={'name': "Hercules"},
                      relationships={'parent': parent})
 ```
 
@@ -701,14 +755,14 @@ relationship from another resource. So, the following are equivalent:_
 ```python
 # Well, almost equivalent, the first example will trigger a request to fetch
 # the parent's data from the server
-child = Child.create(attributes={'name': "Hercules"},
-                     relationships={'parent': Parent.get("1")})
-child = Child.create(attributes={'name': "Hercules"},
-                     relationships={'parent': Parent(id="1")})
-child = Child.create(attributes={'name': "Hercules"},
-                     relationships={'parent': {'type': "parents": 'id': "1"}})
-child = Child.create(attributes={'name': "Hercules"},
-                     relationships={'parent': {'data': {'type': "parents": 'id': "1"}}})
+child = family_api.Child.create(attributes={'name': "Hercules"},
+                                relationships={'parent': family_api.Parent.get("1")})
+child = family_api.Child.create(attributes={'name': "Hercules"},
+                                relationships={'parent': family_api.Parent(id="1")})
+child = family_api.Child.create(attributes={'name': "Hercules"},
+                                relationships={'parent': {'type': "parents": 'id': "1"}})
+child = family_api.Child.create(attributes={'name': "Hercules"},
+                                relationships={'parent': {'data': {'type': "parents": 'id': "1"}}})
 ```
 
 
@@ -716,8 +770,8 @@ This way, you can reuse a relationship from another object when creating,
 without having to fetch the relationship:
 
 ```python
-new_child = Child.create(attributes={'name': "Achilles"},
-                         relationships={'parent': old_child.parent})
+new_child = family_api.Child.create(attributes={'name': "Achilles"},
+                                    relationships={'parent': old_child.parent})
 ```
 
 ##### Magic kwargs
@@ -738,29 +792,29 @@ Things that are interpreted as relationships are:
 So
 
 ```python
-Child(name="Hercules")
+family_api.Child(name="Hercules")
 # is equivalent to
-Child(attributes={'name': "Hercules"})
+family_api.Child(attributes={'name': "Hercules"})
 
-Child(parent={'type': "parents", 'id': "1"})
+family_api.Child(parent={'type': "parents", 'id': "1"})
 # is equivalent to
-Child(relationships={'parent': {'type': "parents", 'id': "1"}})
+family_api.Child(relationships={'parent': {'type': "parents", 'id': "1"}})
 
-Child(parent=Parent(id="1"))
+family_api.Child(parent=family_api.Parent(id="1"))
 # is equivalent to
-Child(relationships={'parent': Parent(id="1")})
+family_api.Child(relationships={'parent': family_api.Parent(id="1")})
 ```
 
 If you are worried about naming conflicts, for example if you want to have a
 relationship called 'attributes', an attribute that looks like a relationship
-and an attribute called 'id', you should back to using 'attributes' and
+and an attribute called 'id', you should fall back to using 'attributes' and
 'relationships' directly.
 
 ```python
 # Don't do this
-child = Child(attributes={'type': "attributes", 'id': "1"},
-              stats={'type': "stats", 'id': "2"},
-              id="3")
+child = family_api.Child(attributes={'type': "attributes", 'id': "1"},
+                         stats={'type': "stats", 'id': "2"},
+                         id="3")
 child.to_dict()
 # {'type': "children",
 #  'attributes': {'type': "attributes", 'id': "1"},
@@ -768,9 +822,8 @@ child.to_dict()
 #  'id': "3"}
 
 # Do this instead
-child = Child(relationships={'attributes': {'type': "attributes", 'id': "1"}},
-              attributes={'stats': {'type': "stats", 'id': "2"},
-                          'id': "3"})
+child = family_api.Child(relationships={'attributes': {'type': "attributes", 'id': "1"}}
+                         attributes={'stats': {'type': "stats", 'id': "2"}, 'id': "3"})
 child.to_dict()
 # {'type': "children",
 #  'attributes': {'stats': {'type': "stats", 'id': "2"},
@@ -789,16 +842,16 @@ ID, if you want to supply your own client-generated ID during creation, you
 **have** to use `.create()`, which will always issue a POST request.
 
 ```python
-Child(attributes={'name': "Hercules"}).save()
+family_api.Child(attributes={'name': "Hercules"}).save()
 # POST: {data: {type: "children", attributes: {name: "Hercules"}}}
 
-Child(id="1", attributes={'name': "Hercules"}).save()
+family_api.Child(id="1", attributes={'name': "Hercules"}).save()
 # PATCH: {data: {type: "children", id: "1", attributes: {name: "Hercules"}}}
 
-Child.create(attributes={'name': "Hercules"})
+family_api.Child.create(attributes={'name': "Hercules"})
 # POST: {data: {type: "children", attributes: {name: "Hercules"}}}
 
-Child.create(id="1", attributes={'name': "Hercules"})
+family_api.Child.create(id="1", attributes={'name': "Hercules"})
 # POST: {data: {type: "children", id: "1", attributes: {name: "Hercules"}}}
 # ^^^^
 ```
@@ -812,7 +865,7 @@ the object will have the same data as before, except its `id` will be set to
 re-create it, with a different ID.
 
 ```python
-child = Child.get("1")
+child = family_api.Child.get("1")
 child.delete()
 
 # Will create a new child with the same name and parent as the previous one
@@ -830,7 +883,7 @@ Changing a singular relationship can happen in two ways (this also depends on
 what the server supports).
 
 ```python
-child = Child.get("1")
+child = family_api.Child.get("1")
 
 child.parent = new_parent
 child.save('parent')
@@ -873,13 +926,13 @@ want to be safe, you should use the `.set_related()` method to edit
 relationships:
 
 ```python
-child.set_related('parent', Parent(id="2"))
+child.set_related('parent', family_api.Parent(id="2"))
 ```
 
 or use the relationship's name shortcut:
 
 ```python
-child.parent = Parent(id="2")
+child.parent = family_api.Parent(id="2")
 ```
 
 (the shortcut uses `.set_related()` during assignment internally anyway)
@@ -890,7 +943,7 @@ For changing plural relationships, you can use one of the `add`, `remove` and
 `reset` methods:
 
 ```python
-parent = Parent.get("1")
+parent = family_api.Parent.get("1")
 parent.add('children', [new_child, ...])
 parent.remove('children', [existing_child, ...])
 parent.reset('children', [child_a, child_b, ...])
@@ -912,8 +965,8 @@ values passed to the above methods can either be resource objects, "resource
 identifiers" or entire relationship objects:
 
 ```python
-parent.add('children', [Child.get("1"),
-                        Child(id="2"),
+parent.add('children', [family_api.Child.get("1"),
+                        family_api.Child(id="2"),
                         {'type': "children", 'id': "3"},
                         {'data': {'type': "children", 'id': "4"}}])
 ```
@@ -921,8 +974,8 @@ parent.add('children', [Child.get("1"),
 This way, you can easily use another object's plural relationship:
 
 ```python
-parent_a = Parent.get('1')
-parent_b = Parent.get('2')
+parent_a = family_api.Parent.get('1')
+parent_b = family_api.Parent.get('2')
 
 # Make sure 'parent_b' has the same children as 'parent_a'
 parent_b.reset('children', list(parent_a.fetch('children').all()))
@@ -940,28 +993,29 @@ Furthermore, `bulk_update` accepts a `fields` keyword argument with the
 
 ```python
 # Bulk-create
-Child.bulk_create([Child(attributes={'name': "One"},
-                         relationships={'parent': parent}),
-                   {'attributes': {'name': "Two"},
-                    'relationships': {'parent': parent}},
-                   ({'name': "Three"}, {'parent': parent})])
+family_api.Child.bulk_create([
+   family_api.Child(attributes={'name': "One"}, relationships={'parent': parent}),
+   {'attributes': {'name': "Two"}, 'relationships': {'parent': parent}},
+   ({'name': "Three"}, {'parent': parent}),
+])
 
 # Bulk-update
-child_a = Child.get("a")
+child_a = family_api.Child.get("a")
 child_a.married = True
 
-Child.bulk_update([child_a,
-                   {'id': "b", 'attributes': {'married': True}},
-                   ("c", {'married': True}),
-                   "d"],
-                  fields=['married'])
+family_api.Child.bulk_update(
+   [child_a,
+    {'id': "b", 'attributes': {'married': True}},
+    ("c", {'married': True}), "d"],
+   fields=['married'],
+)
 
 # Bulk delete
-child_a = Child.get("a")
-Child.bulk_delete([child_a, {'id': "b"}, "c"])
+child_a = family_api.Child.get("a")
+family_api.Child.bulk_delete([child_a, {'id': "b"}, "c"])
 
-parent = Parent.get("1")
-Child.delete(list(parent.children.all()))
+parent = family_api.Parent.get("1")
+family_api.Child.delete(list(parent.children.all()))
 ```
 
 For more details, see our
@@ -988,16 +1042,23 @@ Given these two mechanisms, here is how you might go about performing a
 in Transifex API:
 
 ```python
+@TransifexApi.register
 class TxResource(Resource)
     TYPE = "resources"
+
+@TransifexApi.register
 class ResourceStringsAsyncUpload(Resource)
     TYPE = "resource_strings_async_uploads"
+
+@TransifexApi.register
 class ResourceString(Resource)
     TYPE = "resource_strings"
 
-resource = TxResource.get(...)
+transifex_api = TransifexApi(...)
+
+resource = transifex_api.TxResource.get(...)
 with open(...) as f:
-    upload = ResourceStringsAsyncUpload.create_with_form(
+    upload = transifex_api.ResourceStringsAsyncUpload.create_with_form(
         data={'resource': resource.id},
         files={'content': f},
     )
@@ -1024,10 +1085,10 @@ Sample usage:
 
 ```python
 import os
-import transifex_api
+from transifex_api import transifex_api
 
 # There is a default host for transifex
-transifex_api.setup(os.environ['API_TOKEN'])
+transifex_api.setup(auth=os.environ['API_TOKEN'])
 
 organizations = {organization.slug: organization
                  for organization in transifex_api.Organization.all()}
@@ -1041,7 +1102,7 @@ languages = {language.code: language
              for language in project.fetch('languages').all()}
 language = languages['el']
 
-translations = ResourceTranslation.\
+translations = transifex_api.ResourceTranslation.\
     filter(resource=resource, language=language).\
     include('resource_string')
 translation = translations[0]

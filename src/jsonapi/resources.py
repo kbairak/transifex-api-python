@@ -86,7 +86,7 @@ class Resource(object):
 
         # Relationships
         self.relationships, self.related = {}, {}
-        for key, value in deepcopy(relationships).items():
+        for key, value in relationships.items():
             self._set_relationship(key, value)
             relationship = self.relationships[key]
             if is_null(relationship) or has_data(relationship):
@@ -139,6 +139,7 @@ class Resource(object):
         elif is_resource(value):
             self.relationships[key] = value.as_relationship()
         else:
+            value = deepcopy(value)
             if not is_null(value) and is_resource_identifier(value):
                 value = {'data': value}
             if is_null(value) or has_data(value) or has_links(value):
@@ -443,7 +444,7 @@ class Resource(object):
 
         data = response_body['data']
 
-        related = deepcopy(self.related)
+        related = dict(self.related)
         for relationship_name, related_instance in list(related.items()):
             if is_collection(related_instance):
                 continue  # Plural relationship

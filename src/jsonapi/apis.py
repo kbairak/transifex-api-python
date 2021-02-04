@@ -1,6 +1,7 @@
 from __future__ import absolute_import, unicode_literals
 
 import requests
+import six
 
 from .auth import BearerAuthentication
 from .compat import JSONDecodeError
@@ -8,10 +9,63 @@ from .exceptions import JsonApiException
 from .resources import Resource
 
 
-class JsonApi(object):
-    """ Inteface for a new {json:api} API.
+type_ = type  # alias to avoid naming conflicts
+
+
+class _JsonApiMetaclass(type_):
+    """ Simple metaclass that overwrites the `registry` class variable on
+        `JsonApi` subclasses. This is so that if multiple API connection types
+        are defined on the same application, one won't "contaminate" the other.
+
+            eg
+
+            >>> class API_A(jsonapi.JsonApi):
+            ...     HOST = "..."
+
+            >>> @API_A.register
+            ... class ResourceA(jsonapi.Resource):
+            ...     TYPE = "resource_a"
+
+            >>> class API_AA(API_A):
+            ...     HOST = "..."
+
+            >>> @API_AA.register
+            ... class ResourceAA(jsonapi.Resource):
+            ...     TYPE = "resource_aa"
+
+            >>> class API_B(jsonapi.JsonApi):
+            ...     HOST = "..."
+
+            >>> @API_B.register
+            ... class ResourceB(jsonapi.Resource):
+            ...     TYPE = "resource_b"
+
+            >>> API_A.registry
+            <<< [ResourceA]
+
+            >>> API_AA.registry
+            <<< [ResourceA, ResourceAA]
+
+            >>> API_B.registry
+            <<< [ResourceB]
+    """
+
+    def __new__(cls, *args, **kwargs):
+        result = super(_JsonApiMetaclass, cls).__new__(cls, *args, **kwargs)
+
+        # Use a copy, not reference to parent's registry
+        result.registry = list(getattr(result, 'registry', []))
+
+        return result
+
+
+class JsonApi(six.with_metaclass(_JsonApiMetaclass, object)):
+    """ Inteface for a new {json:api} API connection. Initialization
+        parameters:
 
         - host: The URL of the API
+        - headers: A dict of HTTP headers that will be included in every
+                   request to the server
         - auth: The authentication method. Can either be:
 
           1. A callable, whose return value should be a dictionary which will
@@ -19,23 +73,47 @@ class JsonApi(object):
           2. A string, in which case the 'Authorization' header will be
              `Bearer <auth>`
 
-            >>> _api = jsonapi.JsonApi(host=..., auth=...)
+            >>> class API(jsonapi.JsonApi):
+            ...     HOST = "..."
+            >>> api = API(host=..., auth=...)
 
         The arguments are optional and can be edited later with `.setup()`
 
-            >>> _api = jsonapi.JsonApi()
-            >>> _api.setup(host=..., auth=...)
+            >>> api = API()
+            >>> api.setup(host=..., auth=...)
 
         All Resource classes that use this API should be registered to this API
-        instance:
+        class:
 
-            >>> @_api.register
+            >>> @API.register
             ... class Foo(jsonapi.Resource):
             ...     TYPE = "foos"
     """
 
+    HOST = None
+
     def __init__(self, **kwargs):
-        self.registry = {}
+        """ Create a new API connection instance. It will use the class's
+            registry to build the instance's registries in order to be able to
+            lookup API resource classes from their class names or API types.
+
+            Delegates configuration to `setup` method.
+        """
+
+        self.type_registry = {}
+        self.class_registry = {}
+
+        for base_class in self.__class__.registry:
+            # Dynamically create a subclass adding 'self' (the API connection
+            # instance) as a class variable to it
+            child_class = type_(base_class.__name__,
+                                (base_class, ),
+                                {'API': self})
+            # Lookup the new class by it's name or its TYPE class attribute
+            self.type_registry[base_class.TYPE] = child_class
+            self.class_registry[base_class.__name__] = child_class
+
+        self.host = self.HOST
         self.headers = {}
         self.setup(**kwargs)
 
@@ -52,11 +130,43 @@ class JsonApi(object):
         if headers is not None:
             self.headers = headers
 
-    def register(self, klass):
-        if klass.TYPE is not None:
-            self.registry[klass.TYPE] = klass
-        klass.API = self
+    @classmethod
+    def register(cls, klass):
+        """ Register a API resource type with this API connection *type* (since
+            this is a classmethod). When a new API connection *instance* is
+            created (see `__init__`), it will use this to build its own
+            registry in order to identify class names or API types with the
+            relevant API resource classes.
+        """
+
+        cls.registry.append(klass)
         return klass
+
+    def __getattr__(self, attr):
+        """ Access a registered API resource class. A class name or API
+            resource type can be used.
+
+                >>> class FooApi(JsonApi):
+                ...     HOST = "https://api.foo.com"
+
+                >>> @FooApi.register
+                ... class Foo(Resource):
+                ...     TYPE = "foos"
+
+                >>> foo_api = FooApi()
+
+                >>> foo_api.Foo.list()
+                >>> # or
+                >>> foo_api.foos.list()
+        """
+
+        try:
+            return self.class_registry[attr]
+        except KeyError:
+            try:
+                return self.type_registry[attr]
+            except KeyError:
+                raise AttributeError(attr)
 
     #                 Required args
     def request(self, method, url,
@@ -125,12 +235,13 @@ class JsonApi(object):
                 data = data['data']
             return self.new(**data)
         else:
-            if type in self.registry:
-                klass = self.registry[type]
+            if type in self.type_registry:
+                klass = self.type_registry[type]
             else:
                 # Lets make a new class on the fly
-                class klass(Resource):
-                    API = self
+                klass = type_(type.capitalize(),
+                              (Resource, ),
+                              {'API': self, 'TYPE': type})
             return klass(**kwargs)
 
     def as_resource(self, data):

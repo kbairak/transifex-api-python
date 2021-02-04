@@ -10,17 +10,22 @@ from jsonapi.compat import abc
 from .constants import host
 from .payloads import Payloads
 
-_api = jsonapi.JsonApi(host=host, auth="test_api_key")
+
+class ATestApi(jsonapi.JsonApi):
+    HOST = host
 
 
-@_api.register
+@ATestApi.register
 class Child(jsonapi.Resource):
     TYPE = "children"
 
 
-@_api.register
+@ATestApi.register
 class Parent(jsonapi.Resource):
     TYPE = "parents"
+
+
+test_api = ATestApi(host=host, auth="test_api_key")
 
 
 child_payloads = Payloads('children', singular_type="child")
@@ -45,18 +50,18 @@ def make_simple_assertions(parent):
 
 
 def test_plural_list():
-    parent = Parent(PAYLOAD)
+    parent = test_api.Parent(PAYLOAD)
     make_simple_assertions(parent)
-    parent = Parent(PAYLOAD['data'])
+    parent = test_api.Parent(PAYLOAD['data'])
     make_simple_assertions(parent)
-    parent = Parent(**PAYLOAD['data'])
+    parent = test_api.Parent(**PAYLOAD['data'])
     make_simple_assertions(parent)
 
 
 def test_included():
     payload = deepcopy(PAYLOAD)
     payload['included'] = child_payloads[1:3]
-    parent = Parent(payload)
+    parent = test_api.Parent(payload)
     make_simple_assertions(parent)
 
     assert parent.children[0].name == "child 1"
@@ -68,7 +73,7 @@ def test_refetch():
     responses.add(responses.GET, "{}/parents/1/children".format(host),
                   json={'data': child_payloads[1:4]})
 
-    parent = Parent(PAYLOAD)
+    parent = test_api.Parent(PAYLOAD)
     assert len(parent.children) == 2
 
     parent.fetch('children')
@@ -82,6 +87,6 @@ def test_save_with_included():
     payload = deepcopy(PAYLOAD)
     payload['included'] = child_payloads[1:3]
     responses.add(responses.PATCH, "{}/parents/1".format(host), json=payload)
-    parent = Parent(PAYLOAD)
+    parent = test_api.Parent(payload)
     parent.save(name="parent 1")
     assert [child.name for child in parent.children] == ["child 1", "child 2"]

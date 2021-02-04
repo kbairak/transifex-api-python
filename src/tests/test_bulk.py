@@ -9,12 +9,17 @@ import jsonapi
 from .constants import host
 from .payloads import Payloads
 
-_api = jsonapi.JsonApi(host=host, auth="test_api_key")
+
+class ATestApi(jsonapi.JsonApi):
+    HOST = host
 
 
-@_api.register
+@ATestApi.register
 class BulkItem(jsonapi.Resource):
     TYPE = "bulk_items"
+
+
+test_api = ATestApi(host=host, auth="test_api_key")
 
 
 payloads = Payloads('bulk_items')
@@ -24,8 +29,8 @@ payloads = Payloads('bulk_items')
 def test_bulk_delete():
     responses.add(responses.DELETE, "{}/bulk_items".format(host))
 
-    items = [BulkItem(payload) for payload in payloads[1:6]]
-    BulkItem.bulk_delete([items[0],
+    items = [test_api.BulkItem(payload) for payload in payloads[1:6]]
+    test_api.BulkItem.bulk_delete([items[0],
                           items[1].as_resource_identifier(),
                           items[2].as_relationship(),
                           items[3].id])
@@ -46,7 +51,7 @@ def test_bulk_create():
     responses.add(responses.POST, "{}/bulk_items".format(host),
                   json={'data': response_payload})
 
-    result = BulkItem.bulk_create([
+    result = test_api.BulkItem.bulk_create([
         BulkItem(attributes={'name': "bulk_item 1"}),
         {'attributes': {'name': "bulk_item 2"}},
         ({'name': "bulk_item 3"}, None),
@@ -64,7 +69,7 @@ def test_bulk_create():
 
     assert isinstance(result[0], BulkItem)
     assert result[1].id == "2"
-    assert result[2] == BulkItem(id="3")
+    assert result[2] == test_api.BulkItem(id="3")
 
     for i in range(4):
         assert result[i].id == str(i + 1)
@@ -85,8 +90,8 @@ def test_bulk_update():
     responses.add(responses.PATCH, "{}/bulk_items".format(host),
                   json={'data': response_payload})
 
-    result = BulkItem.bulk_update([
-        BulkItem(id="1", attributes={'name': "modified name 1"}),
+    result = test_api.BulkItem.bulk_update([
+        test_api.BulkItem(id="1", attributes={'name': "modified name 1"}),
         {'id': "2", 'attributes': {'name': "modified name 2"}},
         ("3", {'name': "modified name 3"}, None),
         ("4", {'name': "modified name 4"}),
@@ -106,7 +111,7 @@ def test_bulk_update():
 
     assert isinstance(result[0], BulkItem)
     assert result[1].id == "2"
-    assert result[2] == BulkItem(id="3")
+    assert result[2] == test_api.BulkItem(id="3")
     assert result[3].name == "modified name 4"
 
     for i in range(5):
