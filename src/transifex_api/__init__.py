@@ -4,34 +4,60 @@ import jsonapi
 
 from jsonapi.exceptions import JsonApiException
 
-_api = jsonapi.JsonApi(host="https://rest.api.transifex.com")
+
+class Registry(object):
+
+    def __init__(self):
+        self.registry = {}
+
+    def register(self, klass):
+        if klass.TYPE is not None:
+            self.registry[klass.TYPE] = klass
+        return klass
 
 
-def setup(auth, host=None, headers=None):
-    _api.setup(host=host, auth=auth, headers=headers)
+_registry = Registry()
 
 
-@_api.register
+class API(object):
+
+    def __init__(self, auth, host=None, headers=None):
+        if not host:
+            host = "https://rest.api.transifex.com"
+        self._api = jsonapi.JsonApi(host=host,
+                                    auth=auth,
+                                    headers=headers)
+        self._api.register_types(_registry)
+
+
+# _api = jsonapi.JsonApi(host="https://rest.api.transifex.com")
+#
+#
+# def setup(auth, host=None, headers=None):
+#     _api.setup(host=host, auth=auth, headers=headers)
+
+
+@_registry.register
 class Organization(jsonapi.Resource):
     TYPE = "organizations"
 
 
-@_api.register
+@_registry.register
 class Team(jsonapi.Resource):
     TYPE = "teams"
 
 
-@_api.register
+@_registry.register
 class Project(jsonapi.Resource):
     TYPE = "projects"
 
 
-@_api.register
+@_registry.register
 class Language(jsonapi.Resource):
     TYPE = "languages"
 
 
-@_api.register
+@_registry.register
 class Resource(jsonapi.Resource):
     TYPE = "resources"
 
@@ -45,18 +71,18 @@ class Resource(jsonapi.Resource):
         return count
 
 
-@_api.register
+@_registry.register
 class ResourceString(jsonapi.Resource):
     TYPE = "resource_strings"
 
 
-@_api.register
+@_registry.register
 class ResourceTranslation(jsonapi.Resource):
     TYPE = "resource_translations"
     EDITABLE = ["strings", 'reviewed', "proofread"]
 
 
-@_api.register
+@_registry.register
 class ResourceStringsAsyncUpload(jsonapi.Resource):
     TYPE = "resource_strings_async_uploads"
 
@@ -95,7 +121,7 @@ class ResourceStringsAsyncUpload(jsonapi.Resource):
             upload.reload()
 
 
-@_api.register
+@_registry.register
 class ResourceTranslationsAsyncUpload(Resource):
     TYPE = "resource_translations_async_uploads"
 
@@ -139,22 +165,22 @@ class ResourceTranslationsAsyncUpload(Resource):
             upload.reload()
 
 
-@_api.register
+@_registry.register
 class User(jsonapi.Resource):
     TYPE = "users"
 
 
-@_api.register
+@_registry.register
 class TeamMembership(jsonapi.Resource):
     TYPE = "team_memberships"
 
 
-@_api.register
+@_registry.register
 class ResourceLanguageStats(jsonapi.Resource):
     TYPE = "resource_language_stats"
 
 
-@_api.register
+@_registry.register
 class ResourceTranslationsAsyncDownload(jsonapi.Resource):
     TYPE = "resource_translations_async_downloads"
 

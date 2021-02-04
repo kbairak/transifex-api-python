@@ -52,11 +52,8 @@ class JsonApi(object):
         if headers is not None:
             self.headers = headers
 
-    def register(self, klass):
-        if klass.TYPE is not None:
-            self.registry[klass.TYPE] = klass
-        klass.API = self
-        return klass
+    def register_types(self, registry):
+        self.registry.update(registry.registry)
 
     #                 Required args
     def request(self, method, url,
@@ -131,7 +128,9 @@ class JsonApi(object):
                 # Lets make a new class on the fly
                 class klass(Resource):
                     API = self
-            return klass(**kwargs)
+            resource = klass(**kwargs)
+            resource.API = self
+            return resource
 
     def as_resource(self, data):
         """ Little convenience function when we don't know if we are dealing
