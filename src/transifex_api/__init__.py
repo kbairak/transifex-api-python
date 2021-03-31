@@ -37,9 +37,11 @@ class Resource(jsonapi.Resource):
         count = 0
         # Instead of filter, if Resource had a plural relationship to
         # ResourceString, we could do `self.fetch('resource_strings')`
-        for page in list(ResourceString.filter(resource=self).all_pages()):
+        for page in list(self.API.ResourceString.
+                         filter(resource=self).
+                         all_pages()):
             count += len(page)
-            ResourceString.bulk_delete(page)
+            self.API.ResourceString.bulk_delete(page)
         return count
 
 
@@ -171,6 +173,11 @@ class ResourceTranslationsAsyncDownload(jsonapi.Resource):
                 return download.redirect
             time.sleep(interval)
             download.reload()
+
+
+@TransifexApi.register
+class I18nFormat(jsonapi.Resource):
+    TYPE = "i18n_formats"
 
 
 # This is our global object
