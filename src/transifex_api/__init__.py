@@ -59,7 +59,7 @@ class ResourceStringsAsyncUpload(jsonapi.Resource):
     TYPE = "resource_strings_async_uploads"
 
     @classmethod
-    def upload(cls, resource, content, interval=5):
+    def upload(cls, resource, content, interval=5, sync=True):
         """ Upload source content with multipart/form-data.
 
             :param resource: A (transifex) Resource instance or ID
@@ -83,6 +83,8 @@ class ResourceStringsAsyncUpload(jsonapi.Resource):
                     'status': '409'} for e in upload.errors]
                 raise JsonApiException(409, errors)
 
+            if not sync:
+                return upload
             if upload.redirect:
                 return upload.follow()
             if (hasattr(upload, 'attributes')
@@ -99,7 +101,7 @@ class ResourceTranslationsAsyncUpload(Resource):
 
     @classmethod
     def upload(cls, resource, content, language, interval=5,
-               file_type='default'):
+               file_type='default', sync=True):
         """ Upload translation content with multipart/form-data.
 
             :param resource: A (transifex) Resource instance or ID
@@ -127,6 +129,8 @@ class ResourceTranslationsAsyncUpload(Resource):
                     'status': '409'} for e in upload.errors]
                 raise JsonApiException(409, errors)
 
+            if not sync:
+                return upload
             if upload.redirect:
                 return upload.follow()
             if (hasattr(upload, 'attributes')
